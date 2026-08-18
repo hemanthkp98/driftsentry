@@ -1,0 +1,71 @@
+# ══════════════════════════════════════════════════════════════════
+# DriftSentry Configuration Template (.driftsentry.yaml)
+# ══════════════════════════════════════════════════════════════════
+
+# Infrastructure-as-Code tool: terraform or opentofu
+iac_tool: "terraform"
+
+# State backend configuration
+state:
+  # Backend type: local or s3
+  backend: "local"
+  # Path for local backend
+  path: "./terraform.tfstate"
+  # S3 backend options (when backend is "s3"):
+  # s3_bucket: "my-company-terraform-state"
+  # s3_key: "production/terraform.tfstate"
+  # s3_region: "us-east-1"
+
+# Cloud provider configuration
+provider:
+  name: "aws"
+  region: "us-east-1"
+  # profile: "production"
+  # role_arn: "arn:aws:iam::123456789012:role/DriftSentryScanRole"
+
+# Drift attribution (uses AWS CloudTrail)
+attribution:
+  enabled: true
+  lookback_hours: 168  # 7 days
+
+# Policy evaluation
+policy:
+  enabled: true
+  # policy_file: "./driftsentry-policy.yaml"
+  fail_on_critical: true
+
+# Auto-remediation configuration
+remediation:
+  # Mode: "import" (unmanaged resources), "revert" (changed resources), or "both"
+  mode: "both"
+  output_dir: "./driftsentry-remediation"
+  create_pr: false
+  # github_repo: "myorg/infrastructure"
+  # github_token: "${GITHUB_TOKEN}"
+  # pr_base_branch: "main"
+  dry_run: false
+
+# Notification settings
+notifications:
+  # slack_webhook_url: "${DRIFTSENTRY_SLACK_WEBHOOK}"
+  notify_on:
+    - "critical"
+    - "high"
+
+# Scan filtering and noise reduction
+filters:
+  # Only scan specific resource types (empty = all supported)
+  include_types: []
+  # Exclude specific resource types
+  exclude_types: []
+  # Attributes to ignore during diff (noise reduction)
+  ignore_attributes:
+    - "tags_all"
+    - "arn"
+    - "id"
+    - "owner_id"
+    - "unique_id"
+    - "create_date"
+    - "last_modified"
+  # Unmanaged resource types to skip
+  ignore_unmanaged_types: []
