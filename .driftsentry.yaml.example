@@ -45,6 +45,14 @@ remediation:
   # pr_base_branch: "main"
   dry_run: false
 
+# AI-Powered Smart Remediation (requires pip install 'driftsentry[ai]')
+# llm:
+#   enabled: false
+#   provider: "claude"            # "claude" or "gemini"
+#   # model: "claude-sonnet-4-6"  # Override default model
+#   max_items: 20                 # Max drift items to process with AI
+#   thinking_budget: 5000         # Token budget for LLM extended thinking
+
 # Notification settings
 notifications:
   # slack_webhook_url: "${DRIFTSENTRY_SLACK_WEBHOOK}"

@@ -255,3 +255,50 @@ class DriftResult(BaseModel):
     def items_by_type(self, drift_type: DriftType) -> list[DriftItem]:
         """Filter drift items by drift type."""
         return [d for d in self.drift_items if d.drift_type == drift_type]
+
+
+# ─── AI Remediation Models ──────────────────────────────────────
+
+
+class AIHCLResult(BaseModel):
+    """LLM-generated HCL code for an unmanaged resource."""
+
+    resource_address: str = Field(
+        description="Terraform address, e.g. 'aws_security_group.shadow_sg'"
+    )
+    resource_type: str = Field(description="Resource type, e.g. 'aws_security_group'")
+    resource_id: str = Field(description="Cloud resource ID")
+    suggested_name: str = Field(description="Suggested HCL resource identifier name")
+    hcl_code: str = Field(description="Idiomatic, production-quality HCL resource block")
+    explanation: str = Field(default="", description="Why this HCL structure was chosen")
+    import_command: str = Field(default="", description="Corresponding import command")
+
+
+class AIRootCause(BaseModel):
+    """LLM-generated root-cause narrative for a changed or deleted resource."""
+
+    resource_address: str = Field(description="Terraform address of the drifted resource")
+    resource_type: str = Field(description="Resource type")
+    resource_id: str | None = Field(default=None, description="Cloud resource ID if available")
+    narrative: str = Field(description="Human-readable root cause explanation")
+    risk_assessment: str = Field(default="", description="Security and operational risk analysis")
+    recommended_action: str = Field(
+        default="investigate",
+        description="Recommended action: 'revert', 'accept', or 'investigate'",
+    )
+
+
+class AIRemediationResult(BaseModel):
+    """Complete AI-enhanced remediation output."""
+
+    hcl_results: list[AIHCLResult] = Field(
+        default_factory=list,
+        description="LLM-generated HCL results for unmanaged resources",
+    )
+    root_causes: list[AIRootCause] = Field(
+        default_factory=list,
+        description="Root cause narratives and risk assessments for changed/deleted resources",
+    )
+    provider_used: str = Field(default="", description="LLM provider name ('claude' or 'gemini')")
+    model_used: str = Field(default="", description="Specific model identifier used")
+    total_tokens: int = Field(default=0, description="Approximate tokens used")

@@ -133,3 +133,92 @@ def test_remediation_revert_plan(tmp_path: Path) -> None:
     assert len(output.revert_items) == 1
     assert (tmp_path / "revert_plan.json").exists()
     assert (tmp_path / "revert_instructions.md").exists()
+
+
+def test_remediation_with_ai(tmp_path: Path) -> None:
+    from driftsentry.core.models import AIHCLResult, AIRemediationResult, AIRootCause
+
+    unmanaged_res = CloudResource(
+        resource_id="sg-custom-123",
+        resource_type="aws_security_group",
+        attributes={"id": "sg-custom-123", "name": "custom_sg"},
+    )
+    unmanaged_item = DriftItem(
+        resource_address="[unmanaged] aws_security_group.sg-custom-123",
+        resource_type="aws_security_group",
+        resource_id="sg-custom-123",
+        drift_type=DriftType.UNMANAGED,
+        cloud_resource=unmanaged_res,
+    )
+    changed_item = DriftItem(
+        resource_address="aws_instance.app",
+        resource_type="aws_instance",
+        resource_id="i-app-1",
+        drift_type=DriftType.CHANGED,
+        attribute_diffs=[
+            AttributeDiff(
+                path="instance_type",
+                desired_value="t3.small",
+                actual_value="t3.large",
+            )
+        ],
+    )
+
+    result = DriftResult(
+        scan_id="rem-ai-test",
+        provider="aws",
+        state_backend=StateBackendType.LOCAL,
+        state_source="test",
+        drift_items=[unmanaged_item, changed_item],
+    )
+
+    ai_hcl = AIHCLResult(
+        resource_address="aws_security_group.custom_web_sg",
+        resource_type="aws_security_group",
+        resource_id="sg-custom-123",
+        suggested_name="custom_web_sg",
+        hcl_code='resource "aws_security_group" "custom_web_sg" {\n  name = "custom_web_sg"\n}',
+        explanation="Idiomatic AI-generated security group with best practices",
+        import_command="terraform import aws_security_group.custom_web_sg sg-custom-123",
+    )
+    ai_rc = AIRootCause(
+        resource_address="aws_instance.app",
+        resource_type="aws_instance",
+        resource_id="i-app-1",
+        narrative="Scaled up by devops-engineer during load test",
+        risk_assessment="LOW: Cost drift only",
+        recommended_action="revert",
+    )
+    ai_result = AIRemediationResult(
+        hcl_results=[ai_hcl],
+        root_causes=[ai_rc],
+        provider_used="claude",
+        model_used="claude-sonnet-4-6",
+    )
+
+    generator = RemediationGenerator(
+        mode=RemediationMode.BOTH,
+        output_dir=str(tmp_path),
+        dry_run=False,
+    )
+
+    output = generator.generate_with_ai(result, ai_result=ai_result)
+
+    assert len(output.import_commands) == 1
+    assert "aws_security_group.custom_web_sg" in output.import_commands[0]
+    assert 'resource "aws_security_group" "custom_web_sg"' in output.hcl_blocks[0]
+
+    hcl_file = tmp_path / "imported_custom_web_sg.tf"
+    assert hcl_file.exists()
+    assert 'resource "aws_security_group" "custom_web_sg"' in hcl_file.read_text()
+
+    summary_file = tmp_path / "REMEDIATION_SUMMARY.md"
+    assert summary_file.exists()
+    summary_content = summary_file.read_text()
+    assert "AI Root Cause & Remediation Insights" in summary_content
+    assert "Scaled up by devops-engineer" in summary_content
+
+    revert_file = tmp_path / "revert_instructions.md"
+    assert revert_file.exists()
+    revert_content = revert_file.read_text()
+    assert "AI Root Cause:" in revert_content
