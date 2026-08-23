@@ -22,6 +22,13 @@ provider:
   region: "us-east-1"
   # profile: "production"
   # role_arn: "arn:aws:iam::123456789012:role/DriftSentryScanRole"
+  # External directory containing custom YAML resource definitions:
+  # resource_definitions_dirs:
+  #   - "./custom_resources"
+  #   - "~/.driftsentry/resources"
+  # Python module plugins:
+  # plugins:
+  #   - "my_custom_package.scanners"
 
 # Drift attribution (uses AWS CloudTrail)
 attribution:

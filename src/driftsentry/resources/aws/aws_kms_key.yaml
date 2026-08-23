@@ -1,0 +1,43 @@
+terraform_type: "aws_kms_key"
+service: "kms"
+description: "AWS KMS Customer Master Key"
+
+discovery:
+  list_operation: "list_keys"
+  result_path: "Keys[].KeyId"
+  id_field: "@"
+  describe_operation: "describe_key"
+  describe_params:
+    KeyId: "{id}"
+  attributes_path: "KeyMetadata"
+
+id_prefix_hints:
+  - "arn:aws:kms:"
+
+attributes:
+  key_id: "KeyId"
+  arn: "Arn"
+  description: "Description"
+  key_usage: "KeyUsage"
+  key_spec: "KeySpec"
+  customer_master_key_spec: "CustomerMasterKeySpec"
+  enabled: "Enabled"
+  multi_region: "MultiRegion"
+  key_state: "KeyState"
+
+security_critical:
+  - "enabled"
+  - "key_state"
+  - "policy"
+
+noise_attributes:
+  - "creation_date"
+  - "valid_to"
+
+cloudtrail_events:
+  - "CreateKey"
+  - "DisableKey"
+  - "EnableKey"
+  - "PutKeyPolicy"
+  - "ScheduleKeyDeletion"
+  - "CancelKeyDeletion"

@@ -1,0 +1,37 @@
+terraform_type: "aws_dynamodb_table"
+service: "dynamodb"
+description: "Amazon DynamoDB Table"
+
+discovery:
+  list_operation: "list_tables"
+  result_path: "TableNames[]"
+  id_field: "@"
+  describe_operation: "describe_table"
+  describe_params:
+    TableName: "{id}"
+  attributes_path: "Table"
+
+attributes:
+  name: "TableName"
+  billing_mode: "BillingModeSummary.BillingMode"
+  table_class: "TableClassSummary.TableClass"
+  deletion_protection_enabled: "DeletionProtectionEnabled"
+  stream_enabled: "StreamSpecification.StreamEnabled"
+  stream_view_type: "StreamSpecification.StreamViewType"
+
+security_critical:
+  - "deletion_protection_enabled"
+  - "server_side_encryption"
+
+noise_attributes:
+  - "item_count"
+  - "table_size_bytes"
+  - "table_status"
+  - "creation_date_time"
+
+cloudtrail_events:
+  - "CreateTable"
+  - "DeleteTable"
+  - "UpdateTable"
+  - "UpdateContinuousBackups"
+  - "UpdateTimeToLive"

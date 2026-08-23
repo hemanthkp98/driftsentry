@@ -9,11 +9,12 @@ from typing import Any
 import boto3
 
 from driftsentry.core.models import CloudResource
-from driftsentry.providers.base import ResourceScanner
+from driftsentry.providers.base import ResourceScanner, register_scanner
 
 logger = logging.getLogger(__name__)
 
 
+@register_scanner("aws")
 class EC2Scanner(ResourceScanner):
     """Scans EC2 resources: instances, security groups, VPCs, and subnets."""
 

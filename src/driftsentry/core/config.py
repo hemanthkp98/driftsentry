@@ -38,12 +38,24 @@ class StateConfig(BaseModel):
 
 
 class ProviderConfig(BaseModel):
-    """Configuration for cloud provider access."""
+    """Configuration for cloud provider access and custom resource definitions."""
 
     name: str = Field(default="aws", description="Cloud provider name")
     region: str | None = Field(default=None, description="Cloud region to scan")
     profile: str | None = Field(default=None, description="AWS profile name")
     role_arn: str | None = Field(default=None, description="AWS role ARN to assume")
+    custom_resources: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Inline declarative YAML resource specifications",
+    )
+    resource_definitions_dirs: list[str] = Field(
+        default_factory=list,
+        description="Directories containing external YAML resource definition files",
+    )
+    plugins: list[str] = Field(
+        default_factory=list,
+        description="Python module import paths for custom scanner plugins",
+    )
 
 
 class AttributionConfig(BaseModel):

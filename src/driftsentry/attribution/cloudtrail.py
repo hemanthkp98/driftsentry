@@ -97,6 +97,16 @@ RESOURCE_EVENT_MAP: dict[str, list[str]] = {
     ],
 }
 
+
+def register_resource_events(resource_type: str, event_names: list[str]) -> None:
+    """Register or extend CloudTrail event names for a resource type dynamically."""
+    if resource_type not in RESOURCE_EVENT_MAP:
+        RESOURCE_EVENT_MAP[resource_type] = []
+    for evt in event_names:
+        if evt not in RESOURCE_EVENT_MAP[resource_type]:
+            RESOURCE_EVENT_MAP[resource_type].append(evt)
+
+
 # Console user agents
 CONSOLE_USER_AGENTS = [
     "console.amazonaws.com",

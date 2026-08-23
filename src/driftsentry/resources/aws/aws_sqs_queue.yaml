@@ -1,0 +1,47 @@
+terraform_type: "aws_sqs_queue"
+service: "sqs"
+description: "Amazon SQS Queue"
+
+discovery:
+  list_operation: "list_queues"
+  result_path: "QueueUrls[]"
+  id_field: "@"
+  describe_operation: "get_queue_attributes"
+  describe_params:
+    QueueUrl: "{id}"
+    AttributeNames: ["All"]
+  attributes_path: "Attributes"
+
+id_prefix_hints:
+  - "https://sqs."
+  - "https://queue."
+
+attributes:
+  name: "QueueName"
+  delay_seconds: "DelaySeconds"
+  max_message_size: "MaximumMessageSize"
+  message_retention_seconds: "MessageRetentionPeriod"
+  receive_wait_time_seconds: "ReceiveMessageWaitTimeSeconds"
+  visibility_timeout_seconds: "VisibilityTimeout"
+  kms_master_key_id: "KmsMasterKeyId"
+  policy: "Policy"
+  fifo_queue: "FifoQueue"
+  content_based_deduplication: "ContentBasedDeduplication"
+  redrive_policy: "RedrivePolicy"
+
+security_critical:
+  - "policy"
+  - "kms_master_key_id"
+
+noise_attributes:
+  - "approximate_number_of_messages"
+  - "approximate_number_of_messages_not_visible"
+  - "created_timestamp"
+  - "last_modified_timestamp"
+
+cloudtrail_events:
+  - "CreateQueue"
+  - "DeleteQueue"
+  - "SetQueueAttributes"
+  - "AddPermission"
+  - "RemovePermission"
