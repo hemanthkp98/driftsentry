@@ -1,40 +1,27 @@
 # Contributing to DriftSentry
 
-Thank you for your interest in contributing to **DriftSentry**! We welcome bug reports, feature requests, documentation improvements, and code contributions.
+Guidelines and workflow for contributing bug reports, feature enhancements, documentation, and code to DriftSentry.
 
 ---
 
-## 🛠️ Development Setup
+## Development Setup
 
-### Prerequisites
+For complete local setup instructions, test commands, and quality checks, see [Development Guide](docs/development.md).
 
-- Python 3.11, 3.12, or 3.13
-- `git`
-- `make` (optional, for convenience)
+### Quickstart
 
-### Steps
+```bash
+git clone https://github.com/hemanthkp98/driftsentry.git
+cd driftsentry
 
-1. **Fork and clone the repository:**
-   ```bash
-   git clone https://github.com/your-username/driftsentry.git
-   cd driftsentry
-   ```
-
-2. **Create and activate a virtual environment:**
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-
-3. **Install development dependencies:**
-   ```bash
-   make dev
-   # or: pip install -e ".[dev]"
-   ```
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
 
 ---
 
-## 🧪 Running Tests & Quality Checks
+## Running Tests & Quality Checks
 
 We use `pytest` for testing, `ruff` for linting and formatting, and `mypy` for static type checking:
 
@@ -57,25 +44,21 @@ make ci
 
 ---
 
-## 🏗️ Adding Support for a New AWS Resource Type
+## Adding Support for a New AWS Resource Type
 
-To add support for a new AWS resource type (e.g. `aws_sqs_queue`):
+To add support for a new AWS resource type (e.g. `aws_sqs_queue`), see the detailed guide in [Custom Resources](docs/custom-resources.md):
 
 1. **Add resource mapping** in `src/driftsentry/providers/aws/mapping.py`:
    Define the Terraform type, AWS service, security-critical attributes, and noise attributes.
-
-2. **Implement scanner or update existing scanner** in `src/driftsentry/providers/aws/resources/`:
+2. **Implement scanner** in `src/driftsentry/providers/aws/resources/`:
    Implement `list_all()`, `get_by_id()`, and `normalize()`.
-
 3. **Register scanner** in `src/driftsentry/providers/aws/provider.py`.
-
 4. **Add CloudTrail event mapping** in `src/driftsentry/attribution/cloudtrail.py`.
-
 5. **Add unit tests** in `tests/unit/`.
 
 ---
 
-## 📜 Pull Request Guidelines
+## Pull Request Guidelines
 
 - Ensure all existing and new tests pass (`make ci`).
 - Add tests for any new features or bug fixes.
@@ -84,6 +67,6 @@ To add support for a new AWS resource type (e.g. `aws_sqs_queue`):
 
 ---
 
-## 📄 License
+## License
 
 By contributing to DriftSentry, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE).
