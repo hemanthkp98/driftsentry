@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "driftsentry"
-version = "0.1.0"
+version = "0.2.0"
 description = "Your infrastructure's immune system — detect IaC drift, attribute blame, auto-remediate with PRs."
 readme = "README.md"
 license = "Apache-2.0"
