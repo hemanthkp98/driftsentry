@@ -1,30 +1,33 @@
-# 🚀 Getting Started with DriftSentry
+# Getting Started
 
-This guide will walk you through installing DriftSentry, configuring your cloud credentials, and running your first drift scan in under 2 minutes.
+Install DriftSentry, configure AWS credentials, and run your first drift scan in under two minutes.
 
 ---
 
-## 1. Prerequisites
+## Prerequisites
 
 - **Python**: Version 3.11, 3.12, or 3.13
 - **IaC State**: A Terraform (`.tfstate`) or OpenTofu state file (local or remote in AWS S3)
-- **AWS Permissions**: Read-only AWS credentials
+- **AWS Permissions**: Read-only AWS credentials (see [Recommended IAM Policy](configuration.md#recommended-aws-iam-policy))
 
 ---
 
-## 2. Installation
+## Installation
 
 ### Standard Installation
+
 ```bash
 pip install driftsentry
 ```
 
 ### With AI Smart Remediation (Claude & Gemini)
+
 ```bash
 pip install "driftsentry[ai]"
 ```
 
 ### Install from Source
+
 ```bash
 git clone https://github.com/hemanthkp98/driftsentry.git
 cd driftsentry
@@ -32,15 +35,33 @@ pip install -e ".[dev,ai]"
 ```
 
 Verify your installation:
+
 ```bash
 driftsentry version
 ```
 
 ---
 
-## 3. Configure AWS Credentials
+## Running with Docker
 
-DriftSentry uses standard AWS SDK credential discovery. You can configure credentials using any of the standard methods:
+Run DriftSentry via container without local Python dependencies:
+
+```bash
+# Build Docker image
+docker build -t driftsentry:latest .
+
+# Run scan using mounted AWS credentials and state file
+docker run --rm \
+  -v ~/.aws:/home/driftsentry/.aws:ro \
+  -v $(pwd)/terraform.tfstate:/data/terraform.tfstate:ro \
+  driftsentry:latest scan --state-file /data/terraform.tfstate
+```
+
+---
+
+## Configure AWS Credentials
+
+DriftSentry uses standard AWS SDK credential discovery:
 
 ### Option A: Environment Variables
 ```bash
@@ -56,7 +77,6 @@ export AWS_PROFILE="production"
 ```
 
 ### Option C: IAM Role Assumption
-If you use cross-account roles:
 ```bash
 driftsentry scan \
   --state-file ./terraform.tfstate \
@@ -65,7 +85,7 @@ driftsentry scan \
 
 ---
 
-## 4. Run Your First Scan
+## Run Your First Scan
 
 ### Local Terraform State File
 ```bash
@@ -88,7 +108,7 @@ driftsentry scan \
 
 ---
 
-## 5. Reviewing the Results
+## Reviewing Results
 
 When drift is detected, DriftSentry displays a summary box and an actionable table in your terminal:
 
@@ -113,8 +133,9 @@ When drift is detected, DriftSentry displays a summary box and an actionable tab
 
 ---
 
-## 6. Next Steps
+## Next Steps
 
-- 📊 **Generate Reports**: See [CLI Usage Reference](cli-reference.md) to output HTML and Markdown reports.
+- 📊 **Generate Reports**: See [CLI Reference](api.md) to output HTML and Markdown reports.
 - 🧠 **Auto-Remediate**: Read [AI Smart Remediation](ai-remediation.md) to generate HCL code and open GitHub PRs.
-- 🧩 **Add Services**: Check [Custom & Declarative Resources](custom-resources.md) to define new cloud services.
+- 🧩 **Add Services**: Check [Custom Resources](custom-resources.md) to define new cloud services.
+- ⚙️ **Configuration**: See [Configuration](configuration.md) for complete `.driftsentry.yaml` settings.

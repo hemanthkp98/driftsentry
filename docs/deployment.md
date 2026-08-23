@@ -1,15 +1,21 @@
-# 🔄 CI/CD Automation & Scheduled Drift Detection
+# Deployment & CI/CD Integration
 
-DriftSentry is designed for seamless automation in CI/CD pipelines (GitHub Actions, GitLab CI) to continuously detect drift, attribute changes, and automatically open remediation Pull Requests.
+Automate scheduled infrastructure drift scans, generate report artifacts, and enable automatic remediation Pull Requests in CI/CD pipelines.
 
 ---
 
-## 🐙 GitHub Actions Workflow
+## Overview
+
+DriftSentry is designed for headless automation in CI/CD environments (GitHub Actions, GitLab CI) to continuously detect configuration drift, attribute live changes to specific IAM actors via CloudTrail, and automatically open Pull Requests with corrective HCL code.
+
+---
+
+## GitHub Actions Workflow
 
 Create `.github/workflows/driftsentry.yml` in your infrastructure repository:
 
 ```yaml
-name: "🛡️ DriftSentry IaC Drift Detection"
+name: "DriftSentry IaC Drift Detection"
 
 on:
   schedule:
@@ -87,7 +93,7 @@ jobs:
 
 ---
 
-## 🦊 GitLab CI Pipeline
+## GitLab CI Pipeline
 
 Create a `.gitlab-ci.yml` entry:
 

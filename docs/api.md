@@ -1,4 +1,10 @@
-# 🖥️ CLI Usage Reference
+# CLI Reference
+
+Comprehensive command-line interface reference for `driftsentry scan`, `driftsentry report`, and `driftsentry remediate`.
+
+---
+
+## Overview
 
 DriftSentry provides three primary subcommands:
 1. `driftsentry scan` — Scan live infrastructure and compare against IaC state.
