@@ -53,11 +53,12 @@ Infrastructure drift happens when real-world cloud resources diverge from your I
 
 - 🔍 **Full Drift Detection**: Detects modified (`CHANGED`), deleted (`DELETED`), and shadow IT (`UNMANAGED`) resources.
 - 🕵️ **Drift Attribution**: Correlates drifted resources with AWS CloudTrail events to identify **who** made the change, when, and whether it was via Console (ClickOps) or CLI.
+- 🧠 **AI Smart Remediation**: Uses LLMs (Claude or Gemini) to generate idiomatic, production-ready HCL blocks with native nested configurations and detailed root-cause risk assessments.
 - 🔧 **Dual-Mode Auto-Remediation**:
-  - **Import Mode**: Automatically generates `terraform import` / `tofu import` scripts and skeleton HCL resource blocks for unmanaged resources.
+  - **Import Mode**: Automatically generates `terraform import` / `tofu import` scripts and HCL resource blocks for unmanaged resources.
   - **Revert Mode**: Generates actionable plans to revert out-of-band changes back to your repository's code.
   - **Both Mode**: Combine both approaches with full granular control.
-- 🤖 **Auto-PR Creation**: Directly open pull requests on GitHub containing generated remediation code and a rich markdown drift report.
+- 🤖 **Auto-PR Creation**: Directly open pull requests on GitHub containing generated remediation code, enriched with AI root-cause analysis and a markdown drift report.
 - 🥋 **OpenTofu & Terraform**: Native, first-class support for both OpenTofu and Terraform state files.
 - 📊 **Multi-Format Reporting**: Beautiful Rich CLI tables, structured JSON (for pipelines), self-contained dark-theme HTML reports, and PR-ready Markdown.
 - 📜 **Policy as Code**: Configurable policy rules to ignore benign drift (e.g., tag updates) or escalate security-critical changes (e.g., public S3 buckets, open security group rules).
@@ -181,12 +182,16 @@ Generates remediation scripts, Terraform/OpenTofu HCL code, or directly opens Gi
 # Generate both import scripts and revert plans
 driftsentry remediate --mode both --output-dir ./remediation
 
-# Generate import commands for OpenTofu
-driftsentry remediate --mode import --iac-tool opentofu
+# Enable AI-powered smart remediation (Claude or Gemini)
+export ANTHROPIC_API_KEY="sk-ant-..."
+driftsentry remediate --ai --ai-provider claude
 
-# Automatically create a GitHub PR with remediation code
+# Generate import commands for OpenTofu with AI HCL generation
+driftsentry remediate --mode import --iac-tool opentofu --ai
+
+# Automatically create a GitHub PR with remediation code and AI root-cause analysis
 export GITHUB_TOKEN="ghp_..."
-driftsentry remediate --create-pr --repo "myorg/terraform-infrastructure" --base-branch "main"
+driftsentry remediate --ai --create-pr --repo "myorg/terraform-infrastructure" --base-branch "main"
 ```
 
 Generated folder structure:
@@ -242,6 +247,13 @@ remediation:
   output_dir: "./driftsentry-remediation"
   create_pr: false
   github_repo: "myorg/infra-repo"
+
+# AI Smart Remediation (Claude or Gemini)
+llm:
+  enabled: false
+  provider: "claude"            # "claude" or "gemini"
+  # model: "claude-sonnet-4-6"  # Override default model
+  max_items: 20
 
 # Notifications
 notifications:

@@ -9,7 +9,13 @@ import typer
 from rich.console import Console
 
 from driftsentry.cli.scan import get_last_scan_result
-from driftsentry.core.models import DriftResult, IaCTool, RemediationMode
+from driftsentry.core.config import LLMConfig, load_config
+from driftsentry.core.models import (
+    AIRemediationResult,
+    DriftResult,
+    IaCTool,
+    RemediationMode,
+)
 from driftsentry.remediation.generator import RemediationGenerator, RemediationOutput
 
 console = Console()
@@ -65,6 +71,26 @@ def remediate(
         "--dry-run",
         help="Preview remediation without writing files",
     ),
+    ai: bool = typer.Option(
+        False,
+        "--ai",
+        help="Enable AI-powered smart HCL generation and root-cause analysis",
+    ),
+    ai_provider: str = typer.Option(
+        "claude",
+        "--ai-provider",
+        help="LLM provider: claude or gemini",
+    ),
+    ai_model: str | None = typer.Option(
+        None,
+        "--ai-model",
+        help="Override default LLM model name",
+    ),
+    ai_max_items: int = typer.Option(
+        20,
+        "--ai-max-items",
+        help="Maximum drift items to analyze with AI",
+    ),
     config_file: str | None = typer.Option(
         None,
         "--config",
@@ -79,14 +105,22 @@ def remediate(
     - revert: Generate revert plan for changed resources
     - both: Generate both (default, configurable per-resource)
 
+    With --ai:
+    - Generates idiomatic, structured HCL blocks for unmanaged resources
+    - Generates root-cause narratives and security risk assessments from audit logs
+
     Examples:
 
         driftsentry remediate --input scan-result.json --mode both
 
-        driftsentry remediate --mode import --iac-tool opentofu
+        driftsentry remediate --ai --ai-provider claude
 
-        driftsentry remediate --create-pr --repo myorg/infra
+        driftsentry remediate --mode import --iac-tool opentofu --ai
+
+        driftsentry remediate --create-pr --repo myorg/infra --ai
     """
+    config = load_config(config_file)
+
     # Load result
     result = _load_result(input_file)
     if result is None:
@@ -100,6 +134,41 @@ def remediate(
         console.print("[bold green]✅ No drift to remediate![/]")
         return
 
+    # Run AI smart analysis if requested or configured
+    ai_result: AIRemediationResult | None = None
+    use_ai = ai or config.llm.enabled
+
+    if use_ai:
+        provider_name = ai_provider if ai else (config.llm.provider or "claude")
+        model_name = ai_model if ai_model is not None else config.llm.model
+        max_items = ai_max_items if ai else config.llm.max_items
+
+        with console.status(
+            f"[bold cyan]🤖 Running AI smart remediation with {provider_name}...[/]"
+        ):
+            try:
+                from driftsentry.llm import get_llm_provider
+                from driftsentry.llm.analyzer import LLMAnalyzer
+
+                llm_cfg = LLMConfig(
+                    enabled=True,
+                    provider=provider_name,
+                    model=model_name,
+                    max_items=max_items,
+                )
+                provider = get_llm_provider(llm_cfg)
+                analyzer = LLMAnalyzer(provider=provider, max_items=max_items)
+                ai_result = analyzer.analyze(result)
+                console.print(
+                    f"[bold green]✨ AI analysis completed using {provider.provider_name} ({provider.model_name})[/]\n"
+                )
+            except (OSError, ImportError, ValueError) as e:
+                console.print(f"[bold yellow]⚠️  AI analysis skipped:[/] {e}")
+                console.print("[dim]Falling back to standard template remediation.[/]\n")
+            except Exception as e:
+                console.print(f"[bold red]❌ AI analysis encountered error:[/] {e}")
+                console.print("[dim]Falling back to standard template remediation.[/]\n")
+
     # Generate remediation
     generator = RemediationGenerator(
         mode=RemediationMode(mode),
@@ -108,11 +177,21 @@ def remediate(
         dry_run=dry_run,
     )
 
-    output = generator.generate(result)
+    output = generator.generate(result, ai_result=ai_result)
 
     # Display summary
     if dry_run:
         console.print("[bold yellow]🏃 Dry run — no files written[/]\n")
+
+    if ai_result and ai_result.root_causes:
+        console.print("[bold cyan]🤖 AI Root Cause Insights:[/]")
+        for rc in ai_result.root_causes[:3]:
+            console.print(f"  [bold]{rc.resource_address}:[/] {rc.narrative}")
+            if rc.risk_assessment:
+                console.print(f"    [yellow]⚠️  {rc.risk_assessment}[/]")
+        if len(ai_result.root_causes) > 3:
+            console.print(f"  [dim]... and {len(ai_result.root_causes) - 3} more[/]")
+        console.print()
 
     if output.import_commands:
         console.print(f"[bold]📥 Import commands:[/] {len(output.import_commands)}")
@@ -141,7 +220,13 @@ def remediate(
 
     # Create PR if requested
     if create_pr and not dry_run:
-        _create_pr(result, output, github_repo, github_token, base_branch)
+        _create_pr(
+            result,
+            output,
+            github_repo or config.remediation.github_repo,
+            github_token or config.remediation.github_token,
+            base_branch or config.remediation.pr_base_branch,
+        )
 
 
 def _create_pr(

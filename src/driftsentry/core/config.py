@@ -142,6 +142,18 @@ class ScanFilters(BaseModel):
     )
 
 
+class LLMConfig(BaseModel):
+    """Configuration for AI-powered smart remediation."""
+
+    enabled: bool = Field(default=False, description="Enable AI-powered smart remediation")
+    provider: str = Field(default="claude", description="LLM provider ('claude' or 'gemini')")
+    model: str | None = Field(default=None, description="Override default LLM model name")
+    max_items: int = Field(
+        default=20, description="Maximum number of drift items to process with AI"
+    )
+    thinking_budget: int = Field(default=5000, description="Token budget for LLM extended thinking")
+
+
 class DriftSentryConfig(BaseModel):
     """Root configuration for DriftSentry."""
 
@@ -155,6 +167,7 @@ class DriftSentryConfig(BaseModel):
     remediation: RemediationConfig = Field(default_factory=RemediationConfig)
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
     filters: ScanFilters = Field(default_factory=ScanFilters)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
     verbose: bool = Field(default=False, description="Enable verbose output")
 
 

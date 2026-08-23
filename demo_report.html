@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriftSentry Report — a8f9c2d1</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, #1e293b, #334155);
+            border-radius: 12px;
+            border: 1px solid #475569;
+        }
+        .header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        .header .meta { color: #94a3b8; font-size: 0.9rem; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        .stat-card .label {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
+            background: #1e293b;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th {
+            background: #334155;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+        }
+        td {
+            padding: 0.75rem 1rem;
+            border-top: 1px solid #334155;
+        }
+        tr:hover { background: #334155; }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .detail-section {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .detail-section h3 {
+            margin-bottom: 1rem;
+            color: #06b6d4;
+        }
+        .diff-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-bottom: 1px solid #334155;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.85rem;
+        }
+        .diff-row .attr { color: #94a3b8; }
+        .diff-row .desired { color: #22c55e; }
+        .diff-row .actual { color: #ef4444; }
+        .footer {
+            text-align: center;
+            color: #64748b;
+            padding-top: 2rem;
+            border-top: 1px solid #334155;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ DriftSentry Report</h1>
+        <div class="meta">
+            Scan ID: a8f9c2d1 | Terraform |
+            Provider: aws | Region: us-east-1 |
+            Duration: 8.4s
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card">
+            <div class="number">47</div>
+            <div class="label">Total Resources</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" style="color: #ef4444">2</div>
+            <div class="label">Critical</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" style="color: #eab308">3</div>
+            <div class="label">Changed</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" style="color: #ef4444">1</div>
+            <div class="label">Deleted</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" style="color: #a855f7">1</div>
+            <div class="label">Unmanaged</div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Resource</th>
+                <th>Drift Type</th>
+                <th>Severity</th>
+                <th>Changes</th>
+                <th>Changed By</th>
+            </tr>
+        </thead>
+        <tbody>
+            
+            <tr>
+                <td><code>aws_security_group.web_sg</code></td>
+                <td><span class="badge" style="background:#eab30820; color:#eab308">changed</span></td>
+                <td><span class="badge" style="background:#ef444420; color:#ef4444">critical</span></td>
+                <td>2</td>
+                <td>john.doe@company.com (console)</td>
+            </tr>
+
+            <tr>
+                <td><code>[unmanaged] aws_iam_role.shadow_admin_role</code></td>
+                <td><span class="badge" style="background:#a855f720; color:#a855f7">unmanaged</span></td>
+                <td><span class="badge" style="background:#ef444420; color:#ef4444">critical</span></td>
+                <td>-</td>
+                <td>admin_temp (console)</td>
+            </tr>
+
+            <tr>
+                <td><code>aws_s3_bucket.customer_data</code></td>
+                <td><span class="badge" style="background:#eab30820; color:#eab308">changed</span></td>
+                <td><span class="badge" style="background:#f9731620; color:#f97316">high</span></td>
+                <td>2</td>
+                <td>devops-pipeline-role</td>
+            </tr>
+
+            <tr>
+                <td><code>aws_instance.api_backend</code></td>
+                <td><span class="badge" style="background:#eab30820; color:#eab308">changed</span></td>
+                <td><span class="badge" style="background:#eab30820; color:#eab308">medium</span></td>
+                <td>1</td>
+                <td>sarah.smith (console)</td>
+            </tr>
+
+            <tr>
+                <td><code>aws_subnet.legacy_app</code></td>
+                <td><span class="badge" style="background:#ef444420; color:#ef4444">deleted</span></td>
+                <td><span class="badge" style="background:#f9731620; color:#f97316">high</span></td>
+                <td>-</td>
+                <td>infra-cleanup-job</td>
+            </tr>
+        </tbody>
+    </table>
+
+    
+    <div class="detail-section">
+        <h3>aws_security_group.web_sg</h3>
+        <div class="diff-row" style="font-weight:600; color:#94a3b8;">
+            <div>Attribute</div>
+            <div>Desired (State)</div>
+            <div>Actual (Cloud)</div>
+        </div>
+        
+                <div class="diff-row">
+                    <div class="attr">ingress.0.cidr_blocks</div>
+                    <div class="desired">['10.0.0.0/8']</div>
+                    <div class="actual">['0.0.0.0/0']</div>
+                </div>
+                <div class="diff-row">
+                    <div class="attr">ingress.0.from_port</div>
+                    <div class="desired">443</div>
+                    <div class="actual">22</div>
+                </div>
+    </div>
+
+    <div class="detail-section">
+        <h3>aws_s3_bucket.customer_data</h3>
+        <div class="diff-row" style="font-weight:600; color:#94a3b8;">
+            <div>Attribute</div>
+            <div>Desired (State)</div>
+            <div>Actual (Cloud)</div>
+        </div>
+        
+                <div class="diff-row">
+                    <div class="attr">versioning.enabled</div>
+                    <div class="desired">True</div>
+                    <div class="actual">False</div>
+                </div>
+                <div class="diff-row">
+                    <div class="attr">server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm</div>
+                    <div class="desired">aws:kms</div>
+                    <div class="actual">AES256</div>
+                </div>
+    </div>
+
+    <div class="detail-section">
+        <h3>aws_instance.api_backend</h3>
+        <div class="diff-row" style="font-weight:600; color:#94a3b8;">
+            <div>Attribute</div>
+            <div>Desired (State)</div>
+            <div>Actual (Cloud)</div>
+        </div>
+        
+                <div class="diff-row">
+                    <div class="attr">instance_type</div>
+                    <div class="desired">t3.large</div>
+                    <div class="actual">t3.2xlarge</div>
+                </div>
+    </div>
+
+    <div class="footer">
+        Generated by DriftSentry v0.1.0 — Your infrastructure's immune system
+    </div>
+</body>
+</html>
