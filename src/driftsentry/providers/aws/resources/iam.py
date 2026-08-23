@@ -11,11 +11,12 @@ import boto3
 from botocore.exceptions import ClientError
 
 from driftsentry.core.models import CloudResource
-from driftsentry.providers.base import ResourceScanner
+from driftsentry.providers.base import ResourceScanner, register_scanner
 
 logger = logging.getLogger(__name__)
 
 
+@register_scanner("aws")
 class IAMScanner(ResourceScanner):
     """Scans IAM resources: roles, policies, and users."""
 

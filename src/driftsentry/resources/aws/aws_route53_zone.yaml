@@ -1,0 +1,29 @@
+terraform_type: "aws_route53_zone"
+service: "route53"
+description: "Route53 Hosted Zone"
+
+discovery:
+  list_operation: "list_hosted_zones"
+  result_path: "HostedZones[]"
+  id_field: "Id"
+  describe_operation: "get_hosted_zone"
+  describe_params:
+    Id: "{id}"
+  attributes_path: "HostedZone"
+
+attributes:
+  name: "Name"
+  comment: "Config.Comment"
+  private_zone: "Config.PrivateZone"
+  resource_record_set_count: "ResourceRecordSetCount"
+
+security_critical:
+  - "private_zone"
+
+noise_attributes:
+  - "resource_record_set_count"
+
+cloudtrail_events:
+  - "CreateHostedZone"
+  - "DeleteHostedZone"
+  - "UpdateHostedZoneComment"

@@ -176,6 +176,9 @@ def scan(
             region=config.provider.region,
             profile=config.provider.profile,
             role_arn=config.provider.role_arn,
+            custom_resources=config.provider.custom_resources,
+            resource_definitions_dirs=config.provider.resource_definitions_dirs,
+            plugins=config.provider.plugins,
         )
     else:
         console.print(f"[bold red]Error:[/] Unsupported provider: {provider}")

@@ -1,0 +1,39 @@
+terraform_type: "aws_sns_topic"
+service: "sns"
+description: "Amazon SNS Topic"
+
+discovery:
+  list_operation: "list_topics"
+  result_path: "Topics[].TopicArn"
+  id_field: "@"
+  describe_operation: "get_topic_attributes"
+  describe_params:
+    TopicArn: "{id}"
+  attributes_path: "Attributes"
+
+id_prefix_hints:
+  - "arn:aws:sns:"
+
+attributes:
+  name: "DisplayName"
+  policy: "Policy"
+  delivery_policy: "DeliveryPolicy"
+  kms_master_key_id: "KmsMasterKeyId"
+  fifo_topic: "FifoTopic"
+  content_based_deduplication: "ContentBasedDeduplication"
+
+security_critical:
+  - "policy"
+  - "kms_master_key_id"
+
+noise_attributes:
+  - "subscriptions_confirmed"
+  - "subscriptions_pending"
+  - "subscriptions_deleted"
+
+cloudtrail_events:
+  - "CreateTopic"
+  - "DeleteTopic"
+  - "SetTopicAttributes"
+  - "AddPermission"
+  - "RemovePermission"

@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
 from typing import Any
 
 import boto3
 
+# Ensure built-in scanners are imported so their @register_scanner decorators run
+import driftsentry.providers.aws.resources  # noqa: F401
 from driftsentry.core.models import CloudResource
-from driftsentry.providers.aws.resources.ec2 import EC2Scanner
-from driftsentry.providers.aws.resources.ecs import ECSScanner
-from driftsentry.providers.aws.resources.iam import IAMScanner
-from driftsentry.providers.aws.resources.lambda_fn import LambdaScanner
-from driftsentry.providers.aws.resources.rds import RDSScanner
-from driftsentry.providers.aws.resources.s3 import S3Scanner
-from driftsentry.providers.base import CloudProvider, ResourceScanner
+from driftsentry.providers.aws.catalog import ResourceCatalog
+from driftsentry.providers.aws.declarative import GenericAWSDeclarativeScanner
+from driftsentry.providers.base import (
+    CloudProvider,
+    ResourceScanner,
+    get_registered_scanners,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +25,8 @@ logger = logging.getLogger(__name__)
 class AWSProvider(CloudProvider):
     """AWS cloud provider implementation.
 
-    Uses boto3 to enumerate and describe live AWS resources, then normalizes
-    the API responses to match Terraform's attribute schema.
+    Supports both specialized Python scanners and declarative YAML-defined
+    scanners via Boto3 dynamic discovery and JMESPath attribute normalization.
     """
 
     def __init__(
@@ -31,9 +34,15 @@ class AWSProvider(CloudProvider):
         region: str | None = None,
         profile: str | None = None,
         role_arn: str | None = None,
+        custom_resources: dict[str, Any] | None = None,
+        resource_definitions_dirs: list[str] | None = None,
+        plugins: list[str] | None = None,
     ) -> None:
         self._session = self._create_session(region, profile, role_arn)
         self._region = region or self._session.region_name or "us-east-1"
+        self._custom_resources = custom_resources or {}
+        self._resource_definitions_dirs = resource_definitions_dirs or []
+        self._plugins = plugins or []
         self._scanners: dict[str, ResourceScanner] = {}
         self._register_scanners()
 
@@ -83,20 +92,36 @@ class AWSProvider(CloudProvider):
         return scanner.normalize(cloud_attrs)
 
     def _register_scanners(self) -> None:
-        """Register all available AWS resource scanners."""
-        scanner_classes: list[type[ResourceScanner]] = [
-            EC2Scanner,
-            S3Scanner,
-            IAMScanner,
-            RDSScanner,
-            LambdaScanner,
-            ECSScanner,
-        ]
+        """Register all built-in, plugin, and declarative resource scanners."""
+        # 1. Load external Python plugins
+        for plugin_mod in self._plugins:
+            try:
+                importlib.import_module(plugin_mod)
+                logger.info(f"Loaded DriftSentry plugin module: {plugin_mod}")
+            except Exception as e:
+                logger.error(f"Failed to load plugin '{plugin_mod}': {e}")
 
-        for scanner_cls in scanner_classes:
-            scanner = scanner_cls(self._session, self._region)
-            for rtype in scanner.resource_types:
-                self._scanners[rtype] = scanner
+        # 2. Register Python scanners from the registry
+        for scanner_cls in get_registered_scanners("aws"):
+            try:
+                scanner = scanner_cls(self._session, self._region)
+                for rtype in scanner.resource_types:
+                    self._scanners[rtype] = scanner
+            except Exception as e:
+                logger.error(f"Failed to initialize scanner {scanner_cls.__name__}: {e}")
+
+        # 3. Load declarative YAML resource definitions (built-in and custom)
+        catalog = ResourceCatalog(
+            custom_dirs=self._resource_definitions_dirs,
+            inline_specs=self._custom_resources,
+        )
+        declarative_specs = catalog.load_all()
+
+        for tf_type, spec in declarative_specs.items():
+            # Specialized Python scanners take precedence if already registered
+            if tf_type not in self._scanners:
+                dec_scanner = GenericAWSDeclarativeScanner(self._session, self._region, spec)
+                self._scanners[tf_type] = dec_scanner
 
     def _get_scanner(self, resource_type: str) -> ResourceScanner | None:
         """Look up the scanner for a given Terraform resource type."""

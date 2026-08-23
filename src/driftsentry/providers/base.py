@@ -108,3 +108,96 @@ class ResourceScanner(abc.ABC):
     def resource_types(self) -> list[str]:
         """Terraform resource types this scanner handles."""
         ...
+
+
+# ─── Scanner Registry & Plugin System ───────────────────────────
+
+_SCANNER_REGISTRY: dict[str, list[type[ResourceScanner]]] = {}
+
+
+def register_scanner(provider: str = "aws") -> Any:
+    """Decorator to register a ResourceScanner class for a cloud provider.
+
+    Usage:
+        @register_scanner("aws")
+        class CustomScanner(ResourceScanner):
+            ...
+    """
+
+    def decorator(cls: type[ResourceScanner]) -> type[ResourceScanner]:
+        if provider not in _SCANNER_REGISTRY:
+            _SCANNER_REGISTRY[provider] = []
+        if cls not in _SCANNER_REGISTRY[provider]:
+            _SCANNER_REGISTRY[provider].append(cls)
+        return cls
+
+    return decorator
+
+
+def get_registered_scanners(provider: str = "aws") -> list[type[ResourceScanner]]:
+    """Return all scanner classes registered for a given cloud provider."""
+    return list(_SCANNER_REGISTRY.get(provider, []))
+
+
+# ─── Declarative Resource Specifications ────────────────────────
+
+from pydantic import BaseModel, Field  # noqa: E402
+
+
+class DiscoverySpec(BaseModel):
+    """Specification for discovering live resources via cloud API."""
+
+    list_operation: str = Field(description="Boto3 operation to list resources, e.g. 'list_queues'")
+    result_path: str = Field(
+        default="@",
+        description="JMESPath expression to extract items from list response, e.g. 'QueueUrls[]' or 'TableNames[]'",
+    )
+    id_field: str = Field(
+        default="@",
+        description="JMESPath expression to extract resource ID from listed item (or '@' for string items)",
+    )
+    describe_operation: str | None = Field(
+        default=None,
+        description="Optional Boto3 operation to fetch full resource details, e.g. 'get_queue_attributes'",
+    )
+    describe_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameters for describe_operation, with placeholders like '{id}' or '{name}'",
+    )
+    attributes_path: str | None = Field(
+        default=None,
+        description="Optional JMESPath to extract attributes dictionary from describe response",
+    )
+    paginator_operation: str | None = Field(
+        default=None,
+        description="Operation name if Boto3 paginator differs from list_operation",
+    )
+
+
+class DeclarativeResourceSpec(BaseModel):
+    """Schema for defining an AWS resource scanner declaratively via YAML."""
+
+    terraform_type: str = Field(description="Terraform resource type, e.g. 'aws_sqs_queue'")
+    service: str = Field(description="Boto3 service client name, e.g. 'sqs', 'sns', 'dynamodb'")
+    description: str = Field(default="", description="Human-readable description")
+    discovery: DiscoverySpec = Field(description="Discovery and describe API configuration")
+    id_prefix_hints: list[str] = Field(
+        default_factory=list,
+        description="Optional ID prefixes to assist get_by_id detection",
+    )
+    attributes: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of Terraform attribute names to JMESPath / response field names",
+    )
+    security_critical: list[str] = Field(
+        default_factory=list,
+        description="Attributes flagged as security-critical for severity classification",
+    )
+    noise_attributes: list[str] = Field(
+        default_factory=list,
+        description="Noisy or auto-generated attributes to ignore in diff comparison",
+    )
+    cloudtrail_events: list[str] = Field(
+        default_factory=list,
+        description="CloudTrail API event names that modify this resource type",
+    )

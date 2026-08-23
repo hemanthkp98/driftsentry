@@ -200,6 +200,11 @@ def get_mapping(terraform_type: str) -> ResourceTypeMapping | None:
     return RESOURCE_MAPPINGS.get(terraform_type)
 
 
+def register_mapping(mapping: ResourceTypeMapping) -> None:
+    """Register a new resource mapping dynamically."""
+    RESOURCE_MAPPINGS[mapping.terraform_type] = mapping
+
+
 def is_security_critical(terraform_type: str, attribute: str) -> bool:
     """Check if an attribute change on a resource type is security-critical."""
     mapping = get_mapping(terraform_type)

@@ -54,6 +54,7 @@ Infrastructure drift happens when real-world cloud resources diverge from your I
 - 🔍 **Full Drift Detection**: Detects modified (`CHANGED`), deleted (`DELETED`), and shadow IT (`UNMANAGED`) resources.
 - 🕵️ **Drift Attribution**: Correlates drifted resources with AWS CloudTrail events to identify **who** made the change, when, and whether it was via Console (ClickOps) or CLI.
 - 🧠 **AI Smart Remediation**: Uses LLMs (Claude or Gemini) to generate idiomatic, production-ready HCL blocks with native nested configurations and detailed root-cause risk assessments.
+- 🧩 **Declarative & Custom Resources**: Add any AWS service in minutes using simple YAML or Python plugins without changing core code.
 - 🔧 **Dual-Mode Auto-Remediation**:
   - **Import Mode**: Automatically generates `terraform import` / `tofu import` scripts and HCL resource blocks for unmanaged resources.
   - **Revert Mode**: Generates actionable plans to revert out-of-band changes back to your repository's code.
@@ -63,6 +64,22 @@ Infrastructure drift happens when real-world cloud resources diverge from your I
 - 📊 **Multi-Format Reporting**: Beautiful Rich CLI tables, structured JSON (for pipelines), self-contained dark-theme HTML reports, and PR-ready Markdown.
 - 📜 **Policy as Code**: Configurable policy rules to ignore benign drift (e.g., tag updates) or escalate security-critical changes (e.g., public S3 buckets, open security group rules).
 - 🔒 **Read-Only Cloud Access**: Requires only read-only IAM permissions for scanning.
+
+---
+
+## 📚 Documentation
+
+For in-depth guides, tutorials, and configuration references, explore the documentation:
+
+| Document | Topic |
+|---|---|
+| [🚀 **Getting Started**](docs/getting-started.md) | Installation, AWS credentials, running your first scan in 2 minutes |
+| [🖥️ **CLI Usage Reference**](docs/cli-reference.md) | Detailed breakdown of `scan`, `report`, `remediate` and all flags |
+| [🧠 **AI Smart Remediation**](docs/ai-remediation.md) | Claude & Gemini setup, thinking models, and automated PR generation |
+| [🧩 **Custom & Declarative Resources**](docs/custom-resources.md) | Step-by-step guide to adding any AWS service via YAML specs or Python |
+| [📜 **Policy as Code**](docs/policy-as-code.md) | Severity classification, noise suppression, and CI/CD failure rules |
+| [🔄 **CI/CD Automation**](docs/ci-cd-integration.md) | Setting up scheduled drift detection in GitHub Actions and GitLab CI |
+| [🏗️ **Architecture & Internals**](docs/architecture.md) | Deep dive into the 5-stage pipeline, diff engine, and CloudTrail correlation |
 
 ---
 
