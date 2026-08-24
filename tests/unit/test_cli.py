@@ -7,6 +7,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+import driftsentry.cli.scan as scan_module
 from driftsentry.cli.main import app
 
 runner = CliRunner()
@@ -83,4 +84,28 @@ def test_cli_report_html(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0
     assert html_out.exists()
-    assert "<!DOCTYPE html>" in html_out.read_text()
+    assert "<!DOCTYPE html>" in html_out.read_text(encoding="utf-8")
+
+
+def test_last_scan_result_persists_between_invocations(tmp_path: Path, monkeypatch) -> None:
+    result_data = {
+        "scan_id": "persisted",
+        "iac_tool": "terraform",
+        "provider": "aws",
+        "region": "us-east-1",
+        "state_backend": "local",
+        "state_source": "test.tfstate",
+        "drift_items": [],
+        "duration_seconds": 0.5,
+        "errors": [],
+    }
+    from driftsentry.core.models import DriftResult
+
+    monkeypatch.chdir(tmp_path)
+    scan_module._last_scan_result = None
+    scan_module._save_last_scan_result(DriftResult(**result_data))
+
+    loaded = scan_module.get_last_scan_result()
+
+    assert loaded is not None
+    assert loaded.scan_id == "persisted"

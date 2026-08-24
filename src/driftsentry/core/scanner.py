@@ -198,7 +198,7 @@ class DriftScanner:
             except Exception as e:
                 errors.append(f"Error scanning {rtype}: {e}")
                 logger.error(f"Error scanning {rtype}: {e}")
-                cloud_resources[rtype] = []
+                # Do not add a failed type: missing results must not look deleted.
 
         return cloud_resources
 

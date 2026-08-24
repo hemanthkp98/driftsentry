@@ -163,7 +163,7 @@ class RemediationGenerator:
         if not self._dry_run:
             # Write import script
             import_file = self._output_dir / "import.sh"
-            with open(import_file, "a") as f:
+            with open(import_file, "a", encoding="utf-8") as f:
                 f.write(f"# Import {item.resource_type} — {resource_id}\n")
                 f.write(f"{import_cmd}\n\n")
             import_file.chmod(0o755)
@@ -171,7 +171,7 @@ class RemediationGenerator:
 
             # Write HCL
             hcl_file = self._output_dir / f"imported_{suggested_name}.tf"
-            with open(hcl_file, "w") as f:
+            with open(hcl_file, "w", encoding="utf-8") as f:
                 f.write(hcl_block)
             output.files_created.add(str(hcl_file))
 
@@ -212,14 +212,17 @@ class RemediationGenerator:
             revert_file = self._output_dir / "revert_plan.json"
             existing: list[dict[str, Any]] = []
             if revert_file.exists():
-                existing = json.loads(revert_file.read_text())
+                existing = json.loads(revert_file.read_text(encoding="utf-8"))
             existing.append(revert_info)
-            revert_file.write_text(json.dumps(existing, indent=2, default=str))
+            revert_file.write_text(
+                json.dumps(existing, indent=2, default=str),
+                encoding="utf-8",
+            )
             output.files_created.add(str(revert_file))
 
             # Write human-readable revert instruction
             revert_md = self._output_dir / "revert_instructions.md"
-            with open(revert_md, "a") as f:
+            with open(revert_md, "a", encoding="utf-8") as f:
                 f.write(f"## {item.resource_address}\n\n")
                 if ai_root_cause:
                     f.write(f"> 🤖 **AI Root Cause:** {ai_root_cause.narrative}\n\n")
@@ -265,7 +268,7 @@ class RemediationGenerator:
         summary_file = self._output_dir / "REMEDIATION_SUMMARY.md"
         tool_name = self._iac_tool.value.capitalize()
 
-        with open(summary_file, "w") as f:
+        with open(summary_file, "w", encoding="utf-8") as f:
             f.write("# DriftSentry Remediation Plan\n\n")
             f.write(f"**Scan ID:** `{result.scan_id}`\n")
             f.write(f"**Mode:** {self._mode.value}\n")
@@ -352,7 +355,7 @@ class RemediationGenerator:
         if isinstance(value, int | float):
             return str(value)
         if isinstance(value, str):
-            return f'"{value}"'
+            return json.dumps(value)
         if isinstance(value, list):
             if not value:
                 return "[]"
@@ -361,7 +364,7 @@ class RemediationGenerator:
             return "[" + ", ".join(valid) + "]"
         if isinstance(value, dict):
             return None  # Skip nested blocks for now — complex to serialize
-        return f'"{value}"'
+        return json.dumps(str(value))
 
 
 class RemediationOutput:

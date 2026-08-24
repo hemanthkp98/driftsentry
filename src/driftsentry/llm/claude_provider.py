@@ -22,7 +22,7 @@ class ClaudeProvider(BaseLLMProvider):
 
     def __init__(self, config: LLMConfig | None = None) -> None:
         try:
-            import anthropic  # type: ignore[import-not-found]
+            import anthropic
         except ImportError as exc:
             raise ImportError(
                 "The 'anthropic' package is required for Claude AI features. "

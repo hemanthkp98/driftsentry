@@ -68,7 +68,7 @@ class AWSProvider(CloudProvider):
             return scanner.list_all()
         except Exception as e:
             logger.error(f"Error scanning {resource_type}: {e}")
-            return []
+            raise
 
     def get_resource(self, resource_type: str, resource_id: str) -> CloudResource | None:
         """Get a specific AWS resource by its ID."""

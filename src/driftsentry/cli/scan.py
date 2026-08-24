@@ -21,12 +21,32 @@ console = Console()
 
 # ─── Shared state for passing scan results to report/remediate ──
 
+LAST_SCAN_FILENAME = ".driftsentry-last-scan.json"
 _last_scan_result: DriftResult | None = None
 
 
 def get_last_scan_result() -> DriftResult | None:
     """Get the result of the last scan (used by report and remediate commands)."""
-    return _last_scan_result
+    if _last_scan_result is not None:
+        return _last_scan_result
+
+    last_scan_path = Path.cwd() / LAST_SCAN_FILENAME
+    if not last_scan_path.exists():
+        return None
+
+    try:
+        return DriftResult.model_validate_json(last_scan_path.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _save_last_scan_result(result: DriftResult) -> None:
+    """Persist the latest result so separate CLI invocations can reuse it."""
+    last_scan_path = Path.cwd() / LAST_SCAN_FILENAME
+    last_scan_path.write_text(
+        json.dumps(result.model_dump(mode="json"), indent=2, default=str),
+        encoding="utf-8",
+    )
 
 
 def scan(
@@ -200,6 +220,7 @@ def scan(
 
     # Store for report/remediate commands
     _last_scan_result = result
+    _save_last_scan_result(result)
 
     # Output
     if output_format == "json":
@@ -213,7 +234,10 @@ def scan(
     if save_result:
         save_path = Path(save_result)
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        save_path.write_text(json.dumps(result.model_dump(mode="json"), indent=2, default=str))
+        save_path.write_text(
+            json.dumps(result.model_dump(mode="json"), indent=2, default=str),
+            encoding="utf-8",
+        )
         console.print(f"\n[dim]Result saved to {save_result}[/]")
 
     # Exit code based on drift
