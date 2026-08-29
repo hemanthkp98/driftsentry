@@ -30,9 +30,13 @@ driftsentry scan [OPTIONS]
 | `--s3-bucket` | | S3 bucket for remote state | None |
 | `--s3-key` | | S3 object key (path) for remote state | None |
 | `--provider` | `-p` | Cloud provider (`aws`) | `aws` |
-| `--region` | `-r` | AWS region to scan | `us-east-1` |
+| `--region` | `-r` | Primary AWS region to scan | `us-east-1` |
+| `--regions` | `-R` | Comma-separated list of AWS regions to scan, or `all` | Config default |
 | `--profile` | | AWS CLI profile name | Default profile |
 | `--role-arn` | | AWS IAM Role ARN to assume | None |
+| `--accounts` | `-A` | Comma-separated list of AWS account IDs, names, or profiles | Config default |
+| `--role-arn-template` | | Template for cross-account role assumption (e.g. `arn:aws:iam::{account_id}:role/DriftSentry`) | None |
+| `--concurrency` | | Max concurrent worker threads for parallel scanning across targets | `4` |
 | `--iac-tool` | | IaC engine (`terraform` or `opentofu`) | `terraform` |
 | `--output` | `-o` | Output format (`table`, `json`) | `table` |
 | `--include-types` | | Comma-separated resource types to include (e.g. `aws_instance,aws_sqs_queue`) | All supported |
@@ -48,6 +52,16 @@ driftsentry scan [OPTIONS]
 ```bash
 # Basic scan with verbose attribute diff table
 driftsentry scan --state-file terraform.tfstate --verbose
+
+# Multi-region scan across primary and secondary regions
+driftsentry scan --state-file terraform.tfstate --regions us-east-1,us-west-2,eu-west-1
+
+# Multi-account scan with dynamic role assumption
+driftsentry scan \
+  --state-file terraform.tfstate \
+  --accounts 111122223333,444455556666 \
+  --role-arn-template "arn:aws:iam::{account_id}:role/DriftSentryScanRole" \
+  --concurrency 8
 
 # Scan S3 remote state and save result to JSON
 driftsentry scan \

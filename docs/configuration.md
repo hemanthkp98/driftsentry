@@ -27,9 +27,30 @@ state:
 # Cloud provider
 provider:
   name: "aws"
-  region: "us-east-1"
+  region: "us-east-1"           # Primary fallback region
+  regions:                      # Multi-region: list of regions to scan (or use CLI --regions)
+    - "us-east-1"
+    - "us-west-2"
+    - "eu-west-1"
   # profile: "production"
   # role_arn: "arn:aws:iam::123456789012:role/DriftSentryScanRole"
+
+# Multi-account configuration (AWS Organizations / multi-tenant)
+accounts:
+  - id: "111122223333"
+    name: "production"
+    role_arn: "arn:aws:iam::111122223333:role/DriftSentryScanRole"
+    regions: ["us-east-1", "us-west-2"]
+  - id: "444455556666"
+    name: "staging"
+    role_arn: "arn:aws:iam::444455556666:role/DriftSentryScanRole"
+    profile: "staging-profile"
+
+# Optional cross-account role template
+role_arn_template: "arn:aws:iam::{account_id}:role/DriftSentryScanRole"
+
+# Concurrency for parallel multi-target scans
+concurrency: 4
 
 # Drift attribution (CloudTrail)
 attribution:
@@ -88,8 +109,12 @@ filters:
 | `state.s3_region` | `string` | `us-east-1` | AWS region where the S3 state bucket resides. |
 | `provider.name` | `string` | `aws` | Cloud provider (`aws`). |
 | `provider.region` | `string` | `us-east-1` | AWS target region to scan live infrastructure. |
+| `provider.regions` | `list[string]` | `[]` | List of AWS regions to scan in parallel, or `["all"]`. |
 | `provider.profile` | `string` | `default` | Named AWS credentials profile to use. |
 | `provider.role_arn` | `string` | — | IAM Role ARN to assume before scanning. |
+| `accounts` | `list[AccountConfig]` | `[]` | List of accounts (`id`, `name`, `role_arn`, `profile`, `regions`). |
+| `role_arn_template` | `string` | — | Template for assuming cross-account roles, e.g. `arn:aws:iam::{account_id}:role/DriftSentryScanRole`. |
+| `concurrency` | `integer` | `4` | Maximum worker threads for parallel scanning across targets. |
 | `attribution.enabled` | `boolean` | `true` | Enable CloudTrail event lookup to identify who made the drift change. |
 | `attribution.lookback_hours` | `integer` | `168` | CloudTrail history search window in hours (168h = 7 days). |
 | `policy.enabled` | `boolean` | `true` | Enable policy engine severity classification. |

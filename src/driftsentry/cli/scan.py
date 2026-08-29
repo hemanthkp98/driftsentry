@@ -61,12 +61,39 @@ def scan(
         None,
         "--region",
         "-r",
-        help="Cloud region to scan",
+        help="Primary cloud region to scan",
+    ),
+    regions: str | None = typer.Option(
+        None,
+        "--regions",
+        "-R",
+        help="Comma-separated AWS regions to scan, or 'all'",
     ),
     profile: str | None = typer.Option(
         None,
         "--profile",
         help="AWS profile name",
+    ),
+    role_arn: str | None = typer.Option(
+        None,
+        "--role-arn",
+        help="AWS IAM Role ARN to assume",
+    ),
+    accounts: str | None = typer.Option(
+        None,
+        "--accounts",
+        "-A",
+        help="Comma-separated AWS accounts (IDs, names, or profiles) to scan",
+    ),
+    role_arn_template: str | None = typer.Option(
+        None,
+        "--role-arn-template",
+        help="Template for cross-account role assumption, e.g. 'arn:aws:iam::{account_id}:role/DriftSentryScanRole'",
+    ),
+    concurrency: int = typer.Option(
+        4,
+        "--concurrency",
+        help="Max concurrent worker threads for parallel scanning across targets",
     ),
     iac_tool: str = typer.Option(
         "terraform",
@@ -123,9 +150,11 @@ def scan(
 
         driftsentry scan --state-file terraform.tfstate
 
-        driftsentry scan --state-backend s3 --s3-bucket my-state --s3-key prod/terraform.tfstate
+        driftsentry scan --state-file terraform.tfstate --regions us-east-1,us-west-2
 
-        driftsentry scan -s terraform.tfstate --region us-west-2 --verbose
+        driftsentry scan --accounts 111122223333,444455556666 --role-arn-template "arn:aws:iam::{account_id}:role/DriftSentry"
+
+        driftsentry scan --state-backend s3 --s3-bucket my-state --s3-key prod/terraform.tfstate
     """
     global _last_scan_result
 
@@ -144,8 +173,30 @@ def scan(
         config.state.s3_key = s3_key
     if region:
         config.provider.region = region
+    if regions:
+        config.provider.regions = [r.strip() for r in regions.split(",") if r.strip()]
     if profile:
         config.provider.profile = profile
+    if role_arn:
+        config.provider.role_arn = role_arn
+    if role_arn_template:
+        config.role_arn_template = role_arn_template
+    if concurrency:
+        config.concurrency = concurrency
+    if accounts:
+        from driftsentry.core.config import AccountConfig
+
+        acc_list: list[AccountConfig] = []
+        for a in accounts.split(","):
+            a_clean = a.strip()
+            if not a_clean:
+                continue
+            if a_clean.isdigit() and len(a_clean) == 12:
+                acc_list.append(AccountConfig(id=a_clean))
+            else:
+                acc_list.append(AccountConfig(name=a_clean))
+        config.accounts = acc_list
+
     if iac_tool:
         config.iac_tool = IaCTool(iac_tool)
     if include_types:
@@ -174,11 +225,15 @@ def scan(
     if provider == "aws":
         cloud_provider = AWSProvider(
             region=config.provider.region,
+            regions=config.provider.regions,
             profile=config.provider.profile,
             role_arn=config.provider.role_arn,
+            accounts=config.accounts,
+            role_arn_template=config.role_arn_template,
             custom_resources=config.provider.custom_resources,
             resource_definitions_dirs=config.provider.resource_definitions_dirs,
             plugins=config.provider.plugins,
+            concurrency=config.concurrency,
         )
     else:
         console.print(f"[bold red]Error:[/] Unsupported provider: {provider}")

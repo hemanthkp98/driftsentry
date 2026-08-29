@@ -119,8 +119,8 @@ CONSOLE_USER_AGENTS = [
 class CloudTrailAttributor:
     """Queries CloudTrail to attribute drift to specific IAM principals.
 
-    Uses CloudTrail's `lookup_events` API with resource-based filtering
-    to find who made changes to drifted resources.
+    Supports multi-account and multi-region environments by dynamically
+    routing event lookups to the appropriate regional and account client.
     """
 
     def __init__(
@@ -128,14 +128,36 @@ class CloudTrailAttributor:
         region: str = "us-east-1",
         profile: str | None = None,
         lookback_hours: int = 168,  # 7 days
+        targets: list[Any] | None = None,
     ) -> None:
-        session_kwargs: dict[str, Any] = {"region_name": region}
-        if profile:
-            session_kwargs["profile_name"] = profile
-
-        session = boto3.Session(**session_kwargs)
-        self._cloudtrail = session.client("cloudtrail")
+        self._default_region = region or "us-east-1"
+        self._profile = profile
         self._lookback_hours = lookback_hours
+        self._targets = targets or []
+
+        # Cache of CloudTrail clients: key -> boto3 CloudTrail client
+        self._clients: dict[tuple[str, str], Any] = {}
+
+        # Pre-populate clients from targets if provided
+        for target in self._targets:
+            key = (getattr(target, "account_key", "default"), getattr(target, "region", "us-east-1"))
+            try:
+                session = getattr(target, "session", None)
+                if session:
+                    self._clients[key] = session.client("cloudtrail", region_name=target.region)
+            except Exception as e:
+                logger.debug(f"Failed to create CloudTrail client for target {key}: {e}")
+
+        # Default fallback client
+        if ("default", self._default_region) not in self._clients:
+            session_kwargs: dict[str, Any] = {"region_name": self._default_region}
+            if profile:
+                session_kwargs["profile_name"] = profile
+            try:
+                session = boto3.Session(**session_kwargs)
+                self._clients[("default", self._default_region)] = session.client("cloudtrail")
+            except Exception as e:
+                logger.debug(f"Failed to create default CloudTrail client: {e}")
 
     def attribute(self, drift_item: DriftItem) -> DriftAttribution | None:
         """Find who caused drift for a given drift item.
@@ -155,8 +177,12 @@ class CloudTrailAttributor:
             logger.debug(f"No event mapping for {resource_type}")
             return None
 
+        client = self._get_client_for_item(drift_item)
+        if client is None:
+            return None
+
         # Query CloudTrail
-        events = self._lookup_events(resource_id, event_names)
+        events = self._lookup_events_with_client(client, resource_id, event_names)
 
         if not events:
             return None
@@ -173,6 +199,74 @@ class CloudTrailAttributor:
             user_agent=user_agent,
             is_console_change=any(ua in user_agent for ua in CONSOLE_USER_AGENTS),
         )
+
+    def _get_client_for_item(self, item: DriftItem) -> Any:
+        """Get or create the CloudTrail client for an item's account and region."""
+        region = item.region or self._default_region
+        account_key = item.account_name or item.account_id or "default"
+
+        key = (account_key, region)
+        if key in self._clients:
+            return self._clients[key]
+
+        # Try match by account only
+        for (acc, reg), client in self._clients.items():
+            if acc == account_key:
+                return client
+
+        # Try match by region only
+        for (acc, reg), client in self._clients.items():
+            if reg == region:
+                return client
+
+        # Return default or first available client
+        if ("default", self._default_region) in self._clients:
+            return self._clients[("default", self._default_region)]
+
+        if self._clients:
+            return next(iter(self._clients.values()))
+
+        return None
+
+    def _lookup_events_with_client(
+        self,
+        client: Any,
+        resource_id: str,
+        event_names: list[str],
+    ) -> list[dict[str, Any]]:
+        """Query CloudTrail for events related to a resource using a specific client."""
+        start_time = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(
+            hours=self._lookback_hours
+        )
+
+        all_events: list[dict[str, Any]] = []
+
+        try:
+            paginator = client.get_paginator("lookup_events")
+            for page in paginator.paginate(
+                LookupAttributes=[
+                    {
+                        "AttributeKey": "ResourceName",
+                        "AttributeValue": resource_id,
+                    }
+                ],
+                StartTime=start_time,
+                MaxResults=50,
+            ):
+                for event in page.get("Events", []):
+                    if event.get("EventName") in event_names:
+                        all_events.append(self._parse_event(event))
+
+        except ClientError as e:
+            logger.warning(f"CloudTrail lookup failed for {resource_id}: {e}")
+            return []
+        except Exception as e:
+            logger.debug(f"CloudTrail lookup error for {resource_id}: {e}")
+            return []
+
+        # Sort by time, most recent first
+        all_events.sort(key=lambda e: e.get("eventTime", ""), reverse=True)
+        return all_events
 
     def _lookup_events(
         self,
@@ -223,15 +317,22 @@ class CloudTrailAttributor:
             except json.JSONDecodeError:
                 detail = {}
         else:
-            detail = cloud_trail_event
+            detail = cloud_trail_event or {}
+
+        # Merge top-level lookup_events fields with parsed CloudTrailEvent JSON
+        user_identity = detail.get("userIdentity") or event.get("userIdentity", {})
+        username = event.get("Username")
+        if username and not user_identity.get("userName"):
+            user_identity["userName"] = username
 
         return {
             "eventName": event.get("EventName") or detail.get("eventName"),
-            "eventTime": event.get("EventTime"),
-            "sourceIPAddress": detail.get("sourceIPAddress"),
-            "userAgent": detail.get("userAgent", ""),
-            "userIdentity": detail.get("userIdentity", {}),
-            "requestParameters": detail.get("requestParameters", {}),
+            "eventTime": event.get("EventTime") or detail.get("eventTime"),
+            "sourceIPAddress": detail.get("sourceIPAddress") or event.get("sourceIPAddress"),
+            "userAgent": detail.get("userAgent") or event.get("userAgent", ""),
+            "userIdentity": user_identity,
+            "requestParameters": detail.get("requestParameters") or event.get("requestParameters", {}),
+            "username": username,
         }
 
     @staticmethod
@@ -256,7 +357,7 @@ class CloudTrailAttributor:
             return str(role_name or arn)
 
         # IAM user
-        if identity.get("type") == "IAMUser":
+        if identity.get("type") == "IAMUser" or identity.get("userName"):
             return str(identity.get("userName") or arn)
 
         # Root account
@@ -266,5 +367,8 @@ class CloudTrailAttributor:
         # AWS service
         if identity.get("type") == "AWSService":
             return str(identity.get("invokedBy") or "aws-service")
+
+        if event.get("username"):
+            return str(event["username"])
 
         return str(arn or "unknown")

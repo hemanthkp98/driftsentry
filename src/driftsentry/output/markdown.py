@@ -27,7 +27,16 @@ class MarkdownFormatter:
         lines.append("")
         lines.append(f"**Scan ID:** `{result.scan_id}`  ")
         lines.append(f"**IaC Tool:** {result.iac_tool.value.capitalize()}  ")
-        lines.append(f"**Provider:** {result.provider} | **Region:** {result.region or 'N/A'}  ")
+
+        provider_line = f"**Provider:** {result.provider}"
+        if result.accounts:
+            provider_line += f" | **Accounts:** {', '.join(result.accounts)}"
+        if result.regions:
+            provider_line += f" | **Regions:** {', '.join(result.regions)}"
+        elif result.region:
+            provider_line += f" | **Region:** {result.region}"
+        lines.append(f"{provider_line}  ")
+
         lines.append(f"**State Source:** `{result.state_source}`  ")
         lines.append(f"**Duration:** {result.duration_seconds}s  ")
         lines.append("")
@@ -50,10 +59,29 @@ class MarkdownFormatter:
             return self._finalize(lines, output_path)
 
         # Drift table
+        show_account = len(result.accounts) > 1 or any(
+            (item.account_name or item.account_id) for item in result.drift_items
+        )
+        show_region = len(result.regions) > 1 or any(
+            item.region for item in result.drift_items
+        )
+
         lines.append("## Drifted Resources")
         lines.append("")
-        lines.append("| Resource | Type | Severity | Changes | Changed By |")
-        lines.append("|----------|------|----------|---------|------------|")
+
+        header_cols = []
+        divider_cols = []
+        if show_account:
+            header_cols.append("Account")
+            divider_cols.append("-------")
+        if show_region:
+            header_cols.append("Region")
+            divider_cols.append("------")
+        header_cols.extend(["Resource", "Type", "Severity", "Changes", "Changed By"])
+        divider_cols.extend(["----------", "------", "----------", "---------", "------------"])
+
+        lines.append("| " + " | ".join(header_cols) + " |")
+        lines.append("| " + " | ".join(divider_cols) + " |")
 
         for item in result.drift_items:
             emoji = SEVERITY_EMOJI.get(item.severity, "")
@@ -62,10 +90,20 @@ class MarkdownFormatter:
             if item.attribution and item.attribution.principal:
                 changed_by = f"`{item.attribution.principal}`"
 
-            lines.append(
-                f"| `{item.resource_address}` | {item.drift_type.value} | "
-                f"{emoji} {item.severity.value} | {changes} | {changed_by} |"
-            )
+            row = []
+            if show_account:
+                row.append(f"`{item.account_name or item.account_id or '-'}`")
+            if show_region:
+                row.append(f"`{item.region or '-'}`")
+
+            row.extend([
+                f"`{item.resource_address}`",
+                item.drift_type.value,
+                f"{emoji} {item.severity.value}",
+                changes,
+                changed_by,
+            ])
+            lines.append("| " + " | ".join(row) + " |")
 
         lines.append("")
 

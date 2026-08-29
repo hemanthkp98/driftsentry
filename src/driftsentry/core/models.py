@@ -106,6 +106,8 @@ class CloudResource(BaseModel):
     resource_type: str = Field(description="Terraform resource type, e.g. 'aws_instance'")
     arn: str | None = Field(default=None, description="AWS ARN if applicable")
     region: str | None = Field(default=None, description="Cloud region")
+    account_id: str | None = Field(default=None, description="Cloud account ID")
+    account_name: str | None = Field(default=None, description="Cloud account name / alias")
     attributes: dict[str, Any] = Field(default_factory=dict, description="Resource attributes")
     tags: dict[str, str] = Field(default_factory=dict, description="Resource tags")
 
@@ -185,6 +187,9 @@ class DriftItem(BaseModel):
         default=None,
         description="The resource as it exists in the cloud (None for DELETED)",
     )
+    account_id: str | None = Field(default=None, description="AWS account ID")
+    account_name: str | None = Field(default=None, description="AWS account name or alias")
+    region: str | None = Field(default=None, description="Cloud region")
 
 
 # ─── Drift Result ───────────────────────────────────────────────
@@ -200,7 +205,15 @@ class DriftResult(BaseModel):
     )
     iac_tool: IaCTool = Field(default=IaCTool.TERRAFORM, description="IaC tool used")
     provider: str = Field(description="Cloud provider, e.g. 'aws'")
-    region: str | None = Field(default=None, description="Cloud region scanned")
+    region: str | None = Field(default=None, description="Primary cloud region scanned")
+    regions: list[str] = Field(
+        default_factory=list,
+        description="All cloud regions scanned",
+    )
+    accounts: list[str] = Field(
+        default_factory=list,
+        description="All cloud account IDs/aliases scanned",
+    )
     state_backend: StateBackendType = Field(description="State backend type used")
     state_source: str = Field(description="State file path or backend location")
 

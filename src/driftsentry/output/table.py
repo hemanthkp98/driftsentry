@@ -78,7 +78,24 @@ class TableFormatter:
             f"⏱  Duration: [bold]{result.duration_seconds}s[/]",
             f"🌍 Provider: [bold]{result.provider}[/]",
         ]
-        if result.region:
+
+        # Accounts summary
+        if result.accounts:
+            if len(result.accounts) > 1:
+                accounts_str = ", ".join(result.accounts[:3])
+                if len(result.accounts) > 3:
+                    accounts_str += f" (+{len(result.accounts) - 3} more)"
+                parts.append(f"🏢 Accounts ({len(result.accounts)}): [bold]{accounts_str}[/]")
+            else:
+                parts.append(f"🏢 Account: [bold]{result.accounts[0]}[/]")
+
+        # Regions summary
+        if result.regions and len(result.regions) > 1:
+            regions_str = ", ".join(result.regions[:3])
+            if len(result.regions) > 3:
+                regions_str += f" (+{len(result.regions) - 3} more)"
+            parts.append(f"📍 Regions ({len(result.regions)}): [bold]{regions_str}[/]")
+        elif result.region:
             parts.append(f"📍 Region: [bold]{result.region}[/]")
 
         summary_line = "  │  ".join(parts)
@@ -114,13 +131,25 @@ class TableFormatter:
         )
 
     def _render_drift_table(self, result: DriftResult) -> None:
-        """Render the main drift table."""
+        """Render the main drift table with dynamic Account/Region columns."""
         table = Table(
             title="Drifted Resources",
             show_lines=True,
             border_style="dim",
             header_style="bold cyan",
         )
+
+        show_account = len(result.accounts) > 1 or any(
+            (item.account_name or item.account_id) for item in result.drift_items
+        )
+        show_region = len(result.regions) > 1 or any(
+            item.region for item in result.drift_items
+        )
+
+        if show_account:
+            table.add_column("Account", style="cyan", min_width=12)
+        if show_region:
+            table.add_column("Region", style="blue", min_width=12)
 
         table.add_column("Resource", style="bold", min_width=30)
         table.add_column("Drift Type", justify="center", min_width=12)
@@ -155,7 +184,16 @@ class TableFormatter:
                 if item.attribution.is_console_change:
                     changed_by += " [dim](console)[/dim]"
 
-            table.add_row(address, dtype, sev_text, changes, changed_by)
+            row_cells: list[Any] = []
+            if show_account:
+                acct = item.account_name or item.account_id or "-"
+                row_cells.append(acct)
+            if show_region:
+                reg = item.region or "-"
+                row_cells.append(reg)
+
+            row_cells.extend([address, dtype, sev_text, changes, changed_by])
+            table.add_row(*row_cells)
 
         self.console.print(table)
 

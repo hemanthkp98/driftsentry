@@ -211,14 +211,18 @@ class DriftScanner:
         """Compare state resources with cloud resources to detect drift."""
         drift_items: list[DriftItem] = []
 
-        # Build a lookup of cloud resources by (type, id)
+        # Build a lookup of cloud resources by (type, id) and by ARN
         cloud_lookup: dict[tuple[str, str], CloudResource] = {}
+        arn_lookup: dict[str, CloudResource] = {}
+
         for rtype, resources in cloud_resources.items():
             for cr in resources:
                 cloud_lookup[(rtype, cr.resource_id)] = cr
+                if cr.arn:
+                    arn_lookup[cr.arn] = cr
 
         # Track which cloud resources are matched to state resources
-        matched_cloud_ids: set[tuple[str, str]] = set()
+        matched_cloud_keys: set[tuple[str, str]] = set()
 
         # 1. Check each state resource against the cloud
         for state_res in state_resources:
@@ -232,27 +236,49 @@ class DriftScanner:
             cloud_key = (state_res.resource_type, resource_id)
             cloud_res = cloud_lookup.get(cloud_key)
 
+            # Fallback to ARN matching if resource_id didn't match directly
+            state_arn = state_res.attributes.get("arn")
+            if cloud_res is None and state_arn:
+                cloud_res = arn_lookup.get(state_arn)
+                if cloud_res:
+                    cloud_key = (cloud_res.resource_type, cloud_res.resource_id)
+
             if cloud_res is None:
                 # Resource exists in state but not in cloud → DELETED
-                drift_items.append(self._differ.detect_deleted(state_res))
+                del_item = self._differ.detect_deleted(state_res)
+                acc, reg = self._extract_state_location(state_res)
+                del_item.account_id = acc
+                del_item.region = reg
+                drift_items.append(del_item)
             else:
-                matched_cloud_ids.add(cloud_key)
+                matched_cloud_keys.add(cloud_key)
                 # Resource exists in both → diff attributes
                 try:
                     drift_item = self._differ.diff_resource(state_res, cloud_res)
                     if drift_item:
+                        drift_item.account_id = cloud_res.account_id
+                        drift_item.account_name = cloud_res.account_name
+                        drift_item.region = cloud_res.region
                         drift_items.append(drift_item)
                 except Exception as e:
                     errors.append(f"Error diffing {state_res.address}: {e}")
 
         # 2. Check for unmanaged resources (in cloud but not in state)
         state_ids = {(r.resource_type, r.resource_id) for r in state_resources if r.resource_id}
+        state_arns = {r.attributes.get("arn") for r in state_resources if r.attributes.get("arn")}
 
         for key, cloud_res in cloud_lookup.items():
-            if key not in state_ids:
+            is_matched_by_id = key in state_ids
+            is_matched_by_arn = cloud_res.arn is not None and cloud_res.arn in state_arns
+
+            if not is_matched_by_id and not is_matched_by_arn:
                 if cloud_res.resource_type in self._config.filters.ignore_unmanaged_types:
                     continue
-                drift_items.append(self._differ.detect_unmanaged(cloud_res))
+                unmanaged_item = self._differ.detect_unmanaged(cloud_res)
+                unmanaged_item.account_id = cloud_res.account_id
+                unmanaged_item.account_name = cloud_res.account_name
+                unmanaged_item.region = cloud_res.region
+                drift_items.append(unmanaged_item)
 
         # Sort by severity (critical first)
         severity_order = {
@@ -266,6 +292,23 @@ class DriftScanner:
 
         return drift_items
 
+    @staticmethod
+    def _extract_state_location(state_res: ResourceState) -> tuple[str | None, str | None]:
+        """Extract account_id and region from state resource if present in ARN or attributes."""
+        arn = state_res.attributes.get("arn")
+        if not arn and state_res.resource_id and state_res.resource_id.startswith("arn:aws:"):
+            arn = state_res.resource_id
+
+        if arn and isinstance(arn, str) and arn.startswith("arn:aws:"):
+            parts = arn.split(":")
+            reg = parts[3] if len(parts) > 3 and parts[3] else None
+            acc = parts[4] if len(parts) > 4 and parts[4] else None
+            return acc, reg
+
+        reg = state_res.attributes.get("region")
+        acc = state_res.attributes.get("account_id") or state_res.attributes.get("owner_id")
+        return (str(acc) if acc else None, str(reg) if reg else None)
+
     def _attribute_drift(
         self,
         drift_items: list[DriftItem],
@@ -275,10 +318,12 @@ class DriftScanner:
         try:
             from driftsentry.attribution.cloudtrail import CloudTrailAttributor
 
+            targets = getattr(self._provider, "targets", None)
             attributor = CloudTrailAttributor(
                 region=self._config.provider.region or "us-east-1",
                 profile=self._config.provider.profile,
                 lookback_hours=self._config.attribution.lookback_hours,
+                targets=targets,
             )
 
             for item in drift_items:
@@ -306,11 +351,25 @@ class DriftScanner:
         """Build the final DriftResult object."""
         total_cloud = sum(len(v) for v in cloud_resources.values())
 
+        scanned_regions = getattr(self._provider, "scanned_regions", None) or (
+            self._config.provider.regions
+            if self._config.provider.regions
+            else ([self._config.provider.region] if self._config.provider.region else [])
+        )
+        scanned_accounts = getattr(self._provider, "scanned_accounts", None) or (
+            [acc.name or acc.id for acc in self._config.accounts if acc.name or acc.id]
+        )
+        primary_region = self._config.provider.region or (
+            scanned_regions[0] if scanned_regions else None
+        )
+
         return DriftResult(
             scan_id=scan_id,
             iac_tool=self._config.iac_tool,
             provider=self._config.provider.name,
-            region=self._config.provider.region,
+            region=primary_region,
+            regions=scanned_regions,
+            accounts=scanned_accounts,
             state_backend=self._config.state.backend,
             state_source=self._state_reader.source_description,
             total_resources=len(state_resources),

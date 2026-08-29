@@ -37,11 +37,38 @@ class StateConfig(BaseModel):
     s3_region: str | None = Field(default=None, description="S3 bucket region")
 
 
+class AccountConfig(BaseModel):
+    """Configuration for an AWS account to scan."""
+
+    id: str | None = Field(default=None, description="AWS account ID (e.g. '123456789012')")
+    name: str | None = Field(
+        default=None, description="Human-friendly account alias (e.g. 'production')"
+    )
+    role_arn: str | None = Field(
+        default=None, description="AWS IAM Role ARN to assume in this account"
+    )
+    profile: str | None = Field(
+        default=None, description="AWS CLI profile name for this account"
+    )
+    regions: list[str] = Field(
+        default_factory=list,
+        description="Regions to scan for this specific account (overrides provider.regions)",
+    )
+    external_id: str | None = Field(
+        default=None,
+        description="Optional STS external ID for cross-account role assumption",
+    )
+
+
 class ProviderConfig(BaseModel):
     """Configuration for cloud provider access and custom resource definitions."""
 
     name: str = Field(default="aws", description="Cloud provider name")
-    region: str | None = Field(default=None, description="Cloud region to scan")
+    region: str | None = Field(default=None, description="Primary cloud region to scan")
+    regions: list[str] = Field(
+        default_factory=list,
+        description="Multiple cloud regions to scan",
+    )
     profile: str | None = Field(default=None, description="AWS profile name")
     role_arn: str | None = Field(default=None, description="AWS role ARN to assume")
     custom_resources: dict[str, Any] = Field(
@@ -174,6 +201,18 @@ class DriftSentryConfig(BaseModel):
     )
     state: StateConfig = Field(default_factory=StateConfig)
     provider: ProviderConfig = Field(default_factory=ProviderConfig)
+    accounts: list[AccountConfig] = Field(
+        default_factory=list,
+        description="List of AWS accounts to scan (multi-account support)",
+    )
+    role_arn_template: str | None = Field(
+        default=None,
+        description="Template for cross-account role assumption, e.g. arn:aws:iam::{account_id}:role/DriftSentryScanRole",
+    )
+    concurrency: int = Field(
+        default=4,
+        description="Max concurrent worker threads for parallel scanning across targets",
+    )
     attribution: AttributionConfig = Field(default_factory=AttributionConfig)
     policy: PolicyConfig = Field(default_factory=PolicyConfig)
     remediation: RemediationConfig = Field(default_factory=RemediationConfig)
