@@ -48,18 +48,12 @@ class HTMLFormatter:
         show_account = len(result.accounts) > 1 or any(
             (item.account_name or item.account_id) for item in result.drift_items
         )
-        show_region = len(result.regions) > 1 or any(
-            item.region for item in result.drift_items
-        )
+        show_region = len(result.regions) > 1 or any(item.region for item in result.drift_items)
 
         rows = self._build_table_rows(result, show_account=show_account, show_region=show_region)
         details = self._build_detail_sections(result)
 
-        accounts_meta = (
-            f"Accounts: {', '.join(result.accounts)}"
-            if result.accounts
-            else ""
-        )
+        accounts_meta = f"Accounts: {', '.join(result.accounts)}" if result.accounts else ""
         regions_meta = (
             f"Regions: {', '.join(result.regions)}"
             if result.regions
@@ -275,11 +269,7 @@ class HTMLFormatter:
                 if show_account
                 else ""
             )
-            region_td = (
-                f"<td><code>{item.region or '-'}</code></td>"
-                if show_region
-                else ""
-            )
+            region_td = f"<td><code>{item.region or '-'}</code></td>" if show_region else ""
 
             rows.append(f"""
             <tr>

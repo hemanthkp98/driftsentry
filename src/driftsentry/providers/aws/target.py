@@ -144,7 +144,9 @@ class TargetResolver:
         account_regions: list[str] | None,
     ) -> list[str]:
         """Determine regions to scan, expanding 'all' if requested."""
-        candidate_regions = account_regions if (account_regions and len(account_regions) > 0) else self._regions
+        candidate_regions = (
+            account_regions if (account_regions and len(account_regions) > 0) else self._regions
+        )
 
         if not candidate_regions:
             if self._region:

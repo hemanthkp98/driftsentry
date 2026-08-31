@@ -4,11 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-from botocore.exceptions import ClientError
-
 from driftsentry.attribution.cloudtrail import CloudTrailAttributor
-from driftsentry.core.config import AccountConfig, DriftSentryConfig, load_config
+from driftsentry.core.config import AccountConfig, DriftSentryConfig
 from driftsentry.core.models import (
     CloudResource,
     DriftItem,
@@ -24,7 +21,6 @@ from driftsentry.output.markdown import MarkdownFormatter
 from driftsentry.output.table import TableFormatter
 from driftsentry.providers.aws.provider import AWSProvider
 from driftsentry.providers.aws.target import ScanTarget, TargetResolver
-
 
 # ─── TargetResolver Tests ─────────────────────────────────────────
 

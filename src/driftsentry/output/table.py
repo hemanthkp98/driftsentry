@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -142,9 +144,7 @@ class TableFormatter:
         show_account = len(result.accounts) > 1 or any(
             (item.account_name or item.account_id) for item in result.drift_items
         )
-        show_region = len(result.regions) > 1 or any(
-            item.region for item in result.drift_items
-        )
+        show_region = len(result.regions) > 1 or any(item.region for item in result.drift_items)
 
         if show_account:
             table.add_column("Account", style="cyan", min_width=12)

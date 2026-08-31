@@ -140,7 +140,10 @@ class CloudTrailAttributor:
 
         # Pre-populate clients from targets if provided
         for target in self._targets:
-            key = (getattr(target, "account_key", "default"), getattr(target, "region", "us-east-1"))
+            key = (
+                getattr(target, "account_key", "default"),
+                getattr(target, "region", "us-east-1"),
+            )
             try:
                 session = getattr(target, "session", None)
                 if session:
@@ -210,12 +213,12 @@ class CloudTrailAttributor:
             return self._clients[key]
 
         # Try match by account only
-        for (acc, reg), client in self._clients.items():
+        for (acc, _reg), client in self._clients.items():
             if acc == account_key:
                 return client
 
         # Try match by region only
-        for (acc, reg), client in self._clients.items():
+        for (_acc, reg), client in self._clients.items():
             if reg == region:
                 return client
 
@@ -273,37 +276,13 @@ class CloudTrailAttributor:
         resource_id: str,
         event_names: list[str],
     ) -> list[dict[str, Any]]:
-        """Query CloudTrail for events related to a resource."""
-        start_time = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(
-            hours=self._lookback_hours
-        )
-
-        all_events: list[dict[str, Any]] = []
-
-        try:
-            # Look up by resource name/ID
-            paginator = self._cloudtrail.get_paginator("lookup_events")
-            for page in paginator.paginate(
-                LookupAttributes=[
-                    {
-                        "AttributeKey": "ResourceName",
-                        "AttributeValue": resource_id,
-                    }
-                ],
-                StartTime=start_time,
-                MaxResults=50,
-            ):
-                for event in page.get("Events", []):
-                    if event.get("EventName") in event_names:
-                        all_events.append(self._parse_event(event))
-
-        except ClientError as e:
-            logger.warning(f"CloudTrail lookup failed for {resource_id}: {e}")
+        """Query CloudTrail for events related to a resource (fallback single-target)."""
+        client = self._clients.get(("default", self._default_region))
+        if not client and self._clients:
+            client = next(iter(self._clients.values()))
+        if not client:
             return []
-
-        # Sort by time, most recent first
-        all_events.sort(key=lambda e: e.get("eventTime", ""), reverse=True)
-        return all_events
+        return self._lookup_events_with_client(client, resource_id, event_names)
 
     @staticmethod
     def _parse_event(event: dict[str, Any]) -> dict[str, Any]:
@@ -331,7 +310,8 @@ class CloudTrailAttributor:
             "sourceIPAddress": detail.get("sourceIPAddress") or event.get("sourceIPAddress"),
             "userAgent": detail.get("userAgent") or event.get("userAgent", ""),
             "userIdentity": user_identity,
-            "requestParameters": detail.get("requestParameters") or event.get("requestParameters", {}),
+            "requestParameters": detail.get("requestParameters")
+            or event.get("requestParameters", {}),
             "username": username,
         }
 

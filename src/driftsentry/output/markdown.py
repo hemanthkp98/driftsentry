@@ -62,9 +62,7 @@ class MarkdownFormatter:
         show_account = len(result.accounts) > 1 or any(
             (item.account_name or item.account_id) for item in result.drift_items
         )
-        show_region = len(result.regions) > 1 or any(
-            item.region for item in result.drift_items
-        )
+        show_region = len(result.regions) > 1 or any(item.region for item in result.drift_items)
 
         lines.append("## Drifted Resources")
         lines.append("")
@@ -96,13 +94,15 @@ class MarkdownFormatter:
             if show_region:
                 row.append(f"`{item.region or '-'}`")
 
-            row.extend([
-                f"`{item.resource_address}`",
-                item.drift_type.value,
-                f"{emoji} {item.severity.value}",
-                changes,
-                changed_by,
-            ])
+            row.extend(
+                [
+                    f"`{item.resource_address}`",
+                    item.drift_type.value,
+                    f"{emoji} {item.severity.value}",
+                    changes,
+                    changed_by,
+                ]
+            )
             lines.append("| " + " | ".join(row) + " |")
 
         lines.append("")

@@ -47,9 +47,7 @@ class AccountConfig(BaseModel):
     role_arn: str | None = Field(
         default=None, description="AWS IAM Role ARN to assume in this account"
     )
-    profile: str | None = Field(
-        default=None, description="AWS CLI profile name for this account"
-    )
+    profile: str | None = Field(default=None, description="AWS CLI profile name for this account")
     regions: list[str] = Field(
         default_factory=list,
         description="Regions to scan for this specific account (overrides provider.regions)",
