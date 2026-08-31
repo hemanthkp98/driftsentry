@@ -48,9 +48,13 @@ Thumbs.db
 *.tfstate.backup
 !tests/fixtures/*.tfstate
 
-# Environment
+# Environment & Local Config
 .env
 .env.local
+.env.*
+.driftsentry.yaml
+.driftsentry.yml
+!.driftsentry.yaml.example
 
 # Docker
 .docker/
@@ -58,3 +62,16 @@ Thumbs.db
 # Secrets
 *.pem
 *.key
+
+# DriftSentry scan artifacts & generated outputs
+.driftsentry-last-scan.json
+driftsentry-report.html
+driftsentry-report.json
+driftsentry-report.md
+import.sh
+
+# PR Review & Worktree artifacts
+*.diff
+*.patch
+driftsentry-pr-*/
+
