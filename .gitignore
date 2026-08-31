@@ -59,6 +59,9 @@ Thumbs.db
 # Docker
 .docker/
 
+# DriftSentry scan artifacts
+.driftsentry-last-scan.json
+
 # Secrets
 *.pem
 *.key

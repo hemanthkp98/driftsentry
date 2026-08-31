@@ -132,3 +132,24 @@ def test_scanner_clean_no_drift(
     assert not result.has_drift
     assert result.total_drifted == 0
     assert result.total_resources == 1
+
+
+def test_scanner_does_not_mark_failed_cloud_scan_as_deleted(
+    mock_ec2_resource: ResourceState,
+) -> None:
+    class FailingCloudProvider(MockCloudProvider):
+        def list_resources(self, resource_type: str) -> list[CloudResource]:
+            raise RuntimeError("AWS unavailable")
+
+    config = DriftSentryConfig()
+    config.attribution.enabled = False
+    scanner = DriftScanner(
+        config,
+        MockStateReader([mock_ec2_resource]),
+        FailingCloudProvider({"aws_instance": []}),
+    )
+
+    result = scanner.scan(show_progress=False)
+
+    assert result.deleted_count == 0
+    assert result.errors == ["Error scanning aws_instance: AWS unavailable"]

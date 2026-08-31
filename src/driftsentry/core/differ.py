@@ -91,7 +91,11 @@ class DriftDiffer:
             return None
 
         # Convert deepdiff output to AttributeDiff objects
-        attr_diffs = self._extract_attribute_diffs(diff, state_resource.resource_type)
+        attr_diffs = self._extract_attribute_diffs(
+            diff,
+            state_resource.resource_type,
+            state_resource.sensitive_attributes,
+        )
 
         if not attr_diffs:
             return None
@@ -166,21 +170,24 @@ class DriftDiffer:
         self,
         diff: DeepDiff,
         resource_type: str,
+        sensitive_attributes: list[str] | None = None,
     ) -> list[AttributeDiff]:
         """Convert DeepDiff output into a list of AttributeDiff objects."""
         diffs: list[AttributeDiff] = []
+        sensitive = sensitive_attributes or []
 
         # Values changed
         for path, change in diff.get("values_changed", {}).items():
             attr_path = self._deepdiff_path_to_dot(path)
             if self._should_ignore_path(attr_path):
                 continue
+            is_sensitive = self._is_sensitive_path(attr_path, sensitive)
             diffs.append(
                 AttributeDiff(
                     path=attr_path,
-                    desired_value=change.get("old_value"),
-                    actual_value=change.get("new_value"),
-                    is_sensitive=False,
+                    desired_value="[REDACTED]" if is_sensitive else change.get("old_value"),
+                    actual_value="[REDACTED]" if is_sensitive else change.get("new_value"),
+                    is_sensitive=is_sensitive,
                 )
             )
 
@@ -189,11 +196,13 @@ class DriftDiffer:
             attr_path = self._deepdiff_path_to_dot(path)
             if self._should_ignore_path(attr_path):
                 continue
+            is_sensitive = self._is_sensitive_path(attr_path, sensitive)
             diffs.append(
                 AttributeDiff(
                     path=attr_path,
-                    desired_value=None,
-                    actual_value=value,
+                    desired_value="[REDACTED]" if is_sensitive else None,
+                    actual_value="[REDACTED]" if is_sensitive else value,
+                    is_sensitive=is_sensitive,
                 )
             )
 
@@ -202,11 +211,13 @@ class DriftDiffer:
             attr_path = self._deepdiff_path_to_dot(path)
             if self._should_ignore_path(attr_path):
                 continue
+            is_sensitive = self._is_sensitive_path(attr_path, sensitive)
             diffs.append(
                 AttributeDiff(
                     path=attr_path,
-                    desired_value=value,
-                    actual_value=None,
+                    desired_value="[REDACTED]" if is_sensitive else value,
+                    actual_value="[REDACTED]" if is_sensitive else None,
+                    is_sensitive=is_sensitive,
                 )
             )
 
@@ -215,11 +226,13 @@ class DriftDiffer:
             attr_path = self._deepdiff_path_to_dot(path)
             if self._should_ignore_path(attr_path):
                 continue
+            is_sensitive = self._is_sensitive_path(attr_path, sensitive)
             diffs.append(
                 AttributeDiff(
                     path=attr_path,
-                    desired_value=change.get("old_value"),
-                    actual_value=change.get("new_value"),
+                    desired_value="[REDACTED]" if is_sensitive else change.get("old_value"),
+                    actual_value="[REDACTED]" if is_sensitive else change.get("new_value"),
+                    is_sensitive=is_sensitive,
                 )
             )
 
@@ -229,11 +242,25 @@ class DriftDiffer:
                 attr_path = self._deepdiff_path_to_dot(path)
                 if self._should_ignore_path(attr_path):
                     continue
+                is_sensitive = self._is_sensitive_path(attr_path, sensitive)
                 diffs.append(
                     AttributeDiff(
                         path=attr_path,
-                        desired_value=value if diff_type == "iterable_item_removed" else None,
-                        actual_value=value if diff_type == "iterable_item_added" else None,
+                        desired_value=(
+                            "[REDACTED]"
+                            if is_sensitive
+                            else value
+                            if diff_type == "iterable_item_removed"
+                            else None
+                        ),
+                        actual_value=(
+                            "[REDACTED]"
+                            if is_sensitive
+                            else value
+                            if diff_type == "iterable_item_added"
+                            else None
+                        ),
+                        is_sensitive=is_sensitive,
                     )
                 )
 
@@ -267,6 +294,14 @@ class DriftDiffer:
         """Check if an attribute path should be ignored."""
         top_level = path.split(".")[0]
         return top_level in self._ignore
+
+    @staticmethod
+    def _is_sensitive_path(path: str, sensitive_attributes: list[str]) -> bool:
+        """Check whether a diff path is a sensitive state attribute or child path."""
+        return any(
+            path == sensitive or path.startswith(f"{sensitive}.")
+            for sensitive in sensitive_attributes
+        )
 
     @staticmethod
     def _deepdiff_path_to_dot(path: str) -> str:

@@ -119,3 +119,28 @@ def test_differ_ignores_noise_attributes(
 
     item = differ.diff_resource(mock_ec2_resource, noisy_cloud)
     assert item is None
+
+
+def test_differ_redacts_sensitive_values() -> None:
+    differ = DriftDiffer()
+    state = ResourceState(
+        address="aws_db_instance.prod",
+        resource_type="aws_db_instance",
+        resource_name="prod",
+        provider="aws",
+        resource_id="db-123",
+        attributes={"id": "db-123", "password": "old-secret"},
+        sensitive_attributes=["password"],
+    )
+    cloud = CloudResource(
+        resource_id="db-123",
+        resource_type="aws_db_instance",
+        attributes={"id": "db-123", "password": "new-secret"},
+    )
+
+    item = differ.diff_resource(state, cloud)
+
+    assert item is not None
+    assert item.attribute_diffs[0].is_sensitive
+    assert item.attribute_diffs[0].desired_value == "[REDACTED]"
+    assert item.attribute_diffs[0].actual_value == "[REDACTED]"

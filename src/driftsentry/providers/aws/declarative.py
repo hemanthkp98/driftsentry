@@ -51,7 +51,7 @@ class GenericAWSDeclarativeScanner(ResourceScanner):
             logger.warning(
                 f"Failed to list {self.spec.terraform_type} via {disc.list_operation}: {e}"
             )
-            return []
+            raise
 
         for item in raw_items:
             try:
@@ -92,6 +92,7 @@ class GenericAWSDeclarativeScanner(ResourceScanner):
                 )
             except Exception as e:
                 logger.debug(f"Error processing {self.spec.terraform_type} item: {e}")
+                raise
 
         return resources
 

@@ -151,7 +151,9 @@ class AWSProvider(CloudProvider):
                     res_list = future.result()
                     all_resources.extend(res_list)
                 except Exception as e:
-                    logger.error(f"Error scanning {resource_type} on target {target.target_id}: {e}")
+                    logger.error(
+                        f"Error scanning {resource_type} on target {target.target_id}: {e}"
+                    )
 
         return all_resources
 
@@ -202,7 +204,7 @@ class AWSProvider(CloudProvider):
             return resources
         except Exception as e:
             logger.error(f"Error scanning {resource_type} on target {target.target_id}: {e}")
-            return []
+            raise
 
     def _get_targets_for_type(self, resource_type: str) -> list[ScanTarget]:
         """Determine targets to query, deduplicating global services to 1 per account."""
@@ -283,9 +285,7 @@ class AWSProvider(CloudProvider):
             # 2. Register declarative YAML resource definitions
             for tf_type, spec in declarative_specs.items():
                 if tf_type not in scanners_dict:
-                    dec_scanner = GenericAWSDeclarativeScanner(
-                        target.session, target.region, spec
-                    )
+                    dec_scanner = GenericAWSDeclarativeScanner(target.session, target.region, spec)
                     scanners_dict[tf_type] = dec_scanner
 
             self._target_scanners[target.target_id] = scanners_dict
@@ -320,4 +320,3 @@ class AWSProvider(CloudProvider):
             )
 
         return session
-

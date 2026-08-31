@@ -99,6 +99,12 @@ def test_remediation_opentofu_support(tmp_path: Path) -> None:
     assert output.import_commands[0].startswith("opentofu import")
 
 
+def test_hcl_string_values_are_escaped() -> None:
+    escaped = RemediationGenerator._to_hcl_value('quoted "value"\nnext')
+
+    assert escaped == '"quoted \\"value\\"\\nnext"'
+
+
 def test_remediation_revert_plan(tmp_path: Path) -> None:
     item = DriftItem(
         resource_address="aws_instance.web",
@@ -220,5 +226,5 @@ def test_remediation_with_ai(tmp_path: Path) -> None:
 
     revert_file = tmp_path / "revert_instructions.md"
     assert revert_file.exists()
-    revert_content = revert_file.read_text()
+    revert_content = revert_file.read_text(encoding="utf-8")
     assert "AI Root Cause:" in revert_content
