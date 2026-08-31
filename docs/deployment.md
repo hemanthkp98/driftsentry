@@ -118,3 +118,9 @@ drift_scan:
       - scan-result.json
     expire_in: 30 days
 ```
+
+---
+
+## Multi-Account & Multi-Region CI/CD
+
+To automate drift detection across multiple member accounts in an AWS Organization using a central GitHub Actions runner or AWS OIDC authentication, see the dedicated [Multi-Account & Multi-Region Guide](multi-account-multi-region.md#cicd-example-github-actions-with-aws-oidc).

@@ -35,6 +35,7 @@ driftsentry remediate --ai --create-pr --repo "myorg/infra-repo"
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) — Installation options, AWS credentials setup, running first scans, and Docker usage.
+- [Multi-Account & Multi-Region](docs/multi-account-multi-region.md) — Enterprise AWS Organizations setup, role templates, dynamic region discovery, and parallel execution.
 - [Configuration](docs/configuration.md) — `.driftsentry.yaml` schema, environment variables, and recommended read-only IAM policy.
 - [CLI Reference](docs/api.md) — Complete command options, flags, and exit codes for `scan`, `report`, and `remediate`.
 - [Architecture & Internals](docs/architecture.md) — 5-stage pipeline design, diff engine algorithms, and CloudTrail correlation.

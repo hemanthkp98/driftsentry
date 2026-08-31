@@ -106,6 +106,15 @@ driftsentry scan \
   --region us-east-1
 ```
 
+### Multi-Account & Multi-Region Scan
+```bash
+driftsentry scan \
+  --state-file ./terraform.tfstate \
+  --accounts 111122223333,444455556666 \
+  --role-arn-template "arn:aws:iam::{account_id}:role/DriftSentryScanRole" \
+  --regions us-east-1,us-west-2
+```
+
 ---
 
 ## Reviewing Results
@@ -135,6 +144,7 @@ When drift is detected, DriftSentry displays a summary box and an actionable tab
 
 ## Next Steps
 
+- 🏢 **Multi-Account & Multi-Region**: Learn [Multi-Account & Multi-Region](multi-account-multi-region.md) configuration for enterprise landing zones and AWS Organizations.
 - 📊 **Generate Reports**: See [CLI Reference](api.md) to output HTML and Markdown reports.
 - 🧠 **Auto-Remediate**: Read [AI Smart Remediation](ai-remediation.md) to generate HCL code and open GitHub PRs.
 - 🧩 **Add Services**: Check [Custom Resources](custom-resources.md) to define new cloud services.
