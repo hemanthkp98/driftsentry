@@ -78,3 +78,8 @@ import.sh
 *.patch
 driftsentry-pr-*/
 
+# Agent & LLM IDE configs
+.agents/
+.claude/
+
+
