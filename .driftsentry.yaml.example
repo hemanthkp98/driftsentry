@@ -60,6 +60,12 @@ remediation:
 #   max_items: 20                 # Max drift items to process with AI
 #   thinking_budget: 5000         # Token budget for LLM extended thinking
 
+# Durable scan history persistence (SQLite-backed)
+history:
+  enabled: true
+  # db_path: "~/.driftsentry/history.db"  # Override default database path
+  retention_days: 90  # Auto-prune scan history older than this many days
+
 # Notification settings
 notifications:
   # slack_webhook_url: "${DRIFTSENTRY_SLACK_WEBHOOK}"
