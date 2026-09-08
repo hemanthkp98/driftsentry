@@ -242,6 +242,27 @@ class DriftStore:
         ).fetchall()
         return [self._row_to_drift_item(row) for row in rows]
 
+    def get_chronic_offenders(
+        self, min_occurrences: int = 3, limit: int = 10
+    ) -> list[tuple[str, int]]:
+        """Get resources that have drifted frequently.
+
+        Returns:
+            A list of tuples (resource_address, occurrence_count), sorted by count descending.
+        """
+        rows = self._conn.execute(
+            """
+            SELECT resource_address, COUNT(DISTINCT scan_id) as occurrences
+            FROM drift_item_snapshots
+            GROUP BY resource_address
+            HAVING occurrences >= ?
+            ORDER BY occurrences DESC
+            LIMIT ?
+            """,
+            (min_occurrences, limit),
+        ).fetchall()
+        return [(row["resource_address"], row["occurrences"]) for row in rows]
+
     def delete_before(self, before: datetime.datetime) -> int:
         """Delete scan snapshots (and their drift items) older than `before`.
 
