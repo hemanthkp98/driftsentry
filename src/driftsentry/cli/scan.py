@@ -8,9 +8,10 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from driftsentry.core.config import load_config
+from driftsentry.core.config import DriftSentryConfig, load_config
 from driftsentry.core.models import DriftResult, IaCTool, StateBackendType
 from driftsentry.core.scanner import DriftScanner
+from driftsentry.history import DriftStore
 from driftsentry.output.json_fmt import JSONFormatter
 from driftsentry.output.table import TableFormatter
 from driftsentry.policy.engine import PolicyEngine
@@ -47,6 +48,24 @@ def _save_last_scan_result(result: DriftResult) -> None:
         json.dumps(result.model_dump(mode="json"), indent=2, default=str),
         encoding="utf-8",
     )
+
+
+def _save_to_history(config: DriftSentryConfig, result: DriftResult, *, verbose: bool) -> None:
+    """Persist a scan result to the drift history store, if enabled.
+
+    History persistence is best-effort: a failure here must not break the
+    primary scan command.
+    """
+    db_path = Path(config.history.db_path).expanduser() if config.history.db_path else None
+    try:
+        store = DriftStore(db_path=db_path)
+        try:
+            store.save(result)
+        finally:
+            store.close()
+    except Exception as e:  # history persistence must not break the scan command
+        if verbose:
+            console.print(f"[dim]Warning: failed to save scan to history: {e}[/]")
 
 
 def scan(
@@ -276,6 +295,10 @@ def scan(
     # Store for report/remediate commands
     _last_scan_result = result
     _save_last_scan_result(result)
+
+    # Persist to drift history store
+    if config.history.enabled:
+        _save_to_history(config, result, verbose=verbose)
 
     # Output
     if output_format == "json":

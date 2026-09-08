@@ -191,6 +191,19 @@ class LLMConfig(BaseModel):
     thinking_budget: int = Field(default=5000, description="Token budget for LLM extended thinking")
 
 
+class HistoryConfig(BaseModel):
+    """Configuration for persisting scan results to the drift history store."""
+
+    enabled: bool = Field(default=True, description="Whether to persist scan results to history")
+    db_path: str | None = Field(
+        default=None,
+        description="Override default history database path (default: ~/.driftsentry/history.db)",
+    )
+    retention_days: int = Field(
+        default=90, description="Auto-prune scan history older than this many days"
+    )
+
+
 class DriftSentryConfig(BaseModel):
     """Root configuration for DriftSentry."""
 
@@ -217,6 +230,7 @@ class DriftSentryConfig(BaseModel):
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
     filters: ScanFilters = Field(default_factory=ScanFilters)
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    history: HistoryConfig = Field(default_factory=HistoryConfig)
     verbose: bool = Field(default=False, description="Enable verbose output")
 
 

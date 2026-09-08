@@ -22,8 +22,8 @@ class GeminiProvider(BaseLLMProvider):
 
     def __init__(self, config: LLMConfig | None = None) -> None:
         try:
-            from google import genai  # type: ignore[import-not-found]
-            from google.genai import (  # type: ignore[import-not-found]
+            from google import genai
+            from google.genai import (
                 types as genai_types,
             )
         except ImportError as exc:
