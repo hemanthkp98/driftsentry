@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 import driftsentry.cli.scan as scan_module
@@ -140,8 +142,10 @@ def test_cli_scan_multi_region_and_account_flags(sample_state_file: Path) -> Non
         assert call_kwargs["concurrency"] == 8
 
 
-def test_last_scan_result_persists_between_invocations(tmp_path: Path, monkeypatch) -> None:
-    result_data = {
+def test_last_scan_result_persists_between_invocations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result_data: dict[str, Any] = {
         "scan_id": "persisted",
         "iac_tool": "terraform",
         "provider": "aws",

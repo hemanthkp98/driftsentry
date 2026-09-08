@@ -10,7 +10,7 @@ import logging
 from typing import Any
 
 import boto3
-import jmespath  # type: ignore[import-untyped]
+import jmespath
 from botocore.exceptions import ClientError
 
 from driftsentry.core.models import CloudResource

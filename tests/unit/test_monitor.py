@@ -6,14 +6,25 @@ import datetime
 import os
 import signal
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
 import driftsentry.cli.monitor as monitor_module
 from driftsentry.cli.main import app
-from driftsentry.core.models import DriftItem, DriftResult, DriftSeverity, DriftType
+from driftsentry.core.config import DriftSentryConfig
+from driftsentry.core.models import (
+    DriftItem,
+    DriftResult,
+    DriftSeverity,
+    DriftType,
+    IaCTool,
+    StateBackendType,
+)
 from driftsentry.history.store import DriftStore
+from driftsentry.notifications.slack import SlackNotifier
+from driftsentry.policy.engine import PolicyEvaluation
 
 runner = CliRunner()
 
@@ -35,9 +46,9 @@ def _make_result(scan_id: str, items: list[DriftItem] | None = None) -> DriftRes
     return DriftResult(
         scan_id=scan_id,
         timestamp=datetime.datetime.now(),
-        iac_tool="terraform",
+        iac_tool=IaCTool.TERRAFORM,
         provider="aws",
-        state_backend="local",
+        state_backend=StateBackendType.LOCAL,
         state_source="terraform.tfstate",
         drift_items=items or [],
     )
@@ -49,13 +60,13 @@ def db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def _isolated_store(monkeypatch: pytest.MonkeyPatch, db_path: Path):
+def _isolated_store(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> None:
     """Redirect the CLI's `DriftStore()` calls to a temp database."""
     monkeypatch.setattr(monitor_module, "DriftStore", lambda *a, **kw: DriftStore(db_path=db_path))
 
 
 @pytest.fixture(autouse=True)
-def _no_real_sleep(monkeypatch: pytest.MonkeyPatch):
+def _no_real_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     """Skip the real countdown sleep so tests run instantly."""
     monkeypatch.setattr(monitor_module, "_sleep_with_countdown", lambda *a, **kw: None)
 

@@ -98,13 +98,13 @@ class TargetResolver:
         )
 
         # 3. Determine Account ID and Name
-        account_id = acc.id
+        account_id: str | None = acc.id
         account_name = acc.name or (acc.id if acc.id else "default")
         if not account_id:
             try:
                 sts = account_session.client("sts")
                 caller_identity = sts.get_caller_identity()
-                account_id = caller_identity.get("Account", "unknown")
+                account_id = str(caller_identity.get("Account", "unknown"))
                 if not acc.name:
                     account_name = account_id
             except Exception as e:
