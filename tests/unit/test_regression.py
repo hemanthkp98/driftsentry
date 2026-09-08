@@ -1,3 +1,7 @@
+"""Unit tests for the regression detection engine."""
+
+from __future__ import annotations
+
 import datetime
 
 import pytest

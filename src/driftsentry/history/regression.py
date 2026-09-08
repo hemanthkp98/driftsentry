@@ -1,3 +1,12 @@
+"""Regression detection engine — classifies drift against scan history.
+
+Compares a current `DriftResult` against a previous scan (and, for
+regression detection, the full resource history) to classify each
+drifted resource as new, recurring, resolved, a regression, or worsened.
+"""
+
+from __future__ import annotations
+
 import datetime
 
 from driftsentry.core.models import DriftResult, DriftSeverity, DriftType
