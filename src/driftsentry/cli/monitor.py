@@ -5,13 +5,15 @@ from __future__ import annotations
 import logging
 import signal
 import time
+from collections.abc import Callable
 from types import FrameType
 
 import typer
 from rich.console import Console
 
 from driftsentry.cli.scan import run_scan
-from driftsentry.core.config import load_config
+from driftsentry.core.config import DriftSentryConfig, load_config
+from driftsentry.core.models import DriftResult
 from driftsentry.history.models import DriftDelta
 from driftsentry.history.regression import RegressionDetector
 from driftsentry.history.store import DriftStore
@@ -27,7 +29,7 @@ MIN_INTERVAL_MINUTES = 5
 ALERT_DELTAS = frozenset({DriftDelta.NEW, DriftDelta.REGRESSION, DriftDelta.WORSENED})
 
 
-def _sleep_with_countdown(total_seconds: float, should_stop) -> None:
+def _sleep_with_countdown(total_seconds: float, should_stop: Callable[[], bool]) -> None:
     """Sleep for `total_seconds`, showing a spinner countdown, until `should_stop()` is True."""
     remaining = int(total_seconds)
     with console.status("") as status:
@@ -39,9 +41,7 @@ def _sleep_with_countdown(total_seconds: float, should_stop) -> None:
 
 
 def monitor(
-    interval: float = typer.Option(
-        60, "--interval", help="Minutes between scans (minimum 5)"
-    ),
+    interval: float = typer.Option(60, "--interval", help="Minutes between scans (minimum 5)"),
     max_scans: int | None = typer.Option(
         None, "--max-scans", help="Stop after N scans (default: unlimited)"
     ),
@@ -122,7 +122,7 @@ def monitor(
     console.print(f"\n✅ Monitor complete ({scans_label} scans).")
 
 
-def _report_and_alert(config, result) -> None:
+def _report_and_alert(config: DriftSentryConfig, result: DriftResult) -> None:
     """Run regression detection, print a compact delta summary, and alert on new drift."""
     store = DriftStore()
     try:

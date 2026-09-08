@@ -216,8 +216,7 @@ def diff(
 
     if report.is_first_scan:
         console.print(
-            "[yellow]No previous scan to compare against "
-            "(this is the first scan in history).[/]"
+            "[yellow]No previous scan to compare against (this is the first scan in history).[/]"
         )
         return
 
