@@ -179,6 +179,20 @@ class ScanFilters(BaseModel):
     )
 
 
+class HistoryConfig(BaseModel):
+    """Configuration for durable scan history persistence."""
+
+    enabled: bool = Field(default=True, description="Whether to persist scan results to history")
+    db_path: str | None = Field(
+        default=None,
+        description="Override default history database path (default: ~/.driftsentry/history.db)",
+    )
+    retention_days: int = Field(
+        default=90,
+        description="Auto-prune scan history older than this many days",
+    )
+
+
 class LLMConfig(BaseModel):
     """Configuration for AI-powered smart remediation."""
 
@@ -217,6 +231,7 @@ class DriftSentryConfig(BaseModel):
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
     filters: ScanFilters = Field(default_factory=ScanFilters)
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    history: HistoryConfig = Field(default_factory=HistoryConfig)
     verbose: bool = Field(default=False, description="Enable verbose output")
 
 

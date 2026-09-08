@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import typer
@@ -11,12 +12,14 @@ from rich.console import Console
 from driftsentry.core.config import load_config
 from driftsentry.core.models import DriftResult, IaCTool, StateBackendType
 from driftsentry.core.scanner import DriftScanner
+from driftsentry.history.store import DriftStore
 from driftsentry.output.json_fmt import JSONFormatter
 from driftsentry.output.table import TableFormatter
 from driftsentry.policy.engine import PolicyEngine
 from driftsentry.providers.aws.provider import AWSProvider
 from driftsentry.state.factory import create_state_reader
 
+logger = logging.getLogger(__name__)
 console = Console()
 
 # ─── Shared state for passing scan results to report/remediate ──
@@ -276,6 +279,18 @@ def scan(
     # Store for report/remediate commands
     _last_scan_result = result
     _save_last_scan_result(result)
+
+    # Persist to durable history store
+    if config.history.enabled:
+        try:
+            history_db_path = Path(config.history.db_path) if config.history.db_path else None
+            history_store = DriftStore(db_path=history_db_path)
+            try:
+                history_store.save(result)
+            finally:
+                history_store.close()
+        except Exception as e:
+            logger.warning(f"Failed to persist scan result to history store: {e}")
 
     # Output
     if output_format == "json":
