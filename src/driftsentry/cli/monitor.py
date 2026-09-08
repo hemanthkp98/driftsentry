@@ -6,6 +6,7 @@ import logging
 import signal
 import time
 from collections.abc import Callable
+from pathlib import Path
 from types import FrameType
 
 import typer
@@ -124,7 +125,8 @@ def monitor(
 
 def _report_and_alert(config: DriftSentryConfig, result: DriftResult) -> None:
     """Run regression detection, print a compact delta summary, and alert on new drift."""
-    store = DriftStore()
+    db_path = Path(config.history.db_path) if config.history.db_path else None
+    store = DriftStore(db_path=db_path)
     try:
         report = RegressionDetector(store).compare(result)
     finally:

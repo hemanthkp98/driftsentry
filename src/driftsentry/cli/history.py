@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import datetime
+from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from driftsentry.core.config import load_config
 from driftsentry.core.models import (
     DriftItem,
     DriftResult,
@@ -25,6 +27,16 @@ history_app = typer.Typer(name="history", help="Query drift scan history and tre
 
 # Large enough to effectively mean "all rows" for the tables involved.
 _UNBOUNDED_LIMIT = 1_000_000
+
+_CONFIG_OPTION = typer.Option(None, "--config", "-c", help="Path to .driftsentry.yaml config file")
+
+
+def _open_store(config_file: str | None) -> DriftStore:
+    """Open the history store at the path configured in `.driftsentry.yaml`."""
+    config = load_config(config_file)
+    db_path = Path(config.history.db_path) if config.history.db_path else None
+    return DriftStore(db_path=db_path)
+
 
 _DELTA_ICONS: dict[DriftDelta, str] = {
     DriftDelta.NEW: "🆕",
@@ -93,12 +105,13 @@ def list_scans(
     before: str | None = typer.Option(
         None, "--before", help="Only show scans on/before this date (YYYY-MM-DD)"
     ),
+    config_file: str | None = _CONFIG_OPTION,
 ) -> None:
     """Show recent scan summaries."""
     since_dt = _parse_date(since) if since else None
     before_dt = _parse_date(before) if before else None
 
-    store = DriftStore()
+    store = _open_store(config_file)
     try:
         snapshots = store.list_snapshots(limit=limit, since=since_dt, before=before_dt)
     finally:
@@ -143,9 +156,10 @@ def list_scans(
 @history_app.command("show")
 def show(
     scan_id: str = typer.Argument(..., help="Scan ID (or unique prefix) to show details for"),
+    config_file: str | None = _CONFIG_OPTION,
 ) -> None:
     """Show detailed drift items for a specific scan."""
-    store = DriftStore()
+    store = _open_store(config_file)
     try:
         snapshot = _resolve_scan(store, scan_id)
         if snapshot is None:
@@ -194,9 +208,10 @@ def diff(
         "--scan-id",
         help="Scan ID to treat as the 'current' scan (defaults to the most recent scan)",
     ),
+    config_file: str | None = _CONFIG_OPTION,
 ) -> None:
     """Compare a scan against the previous one using regression detection."""
-    store = DriftStore()
+    store = _open_store(config_file)
     try:
         if scan_id:
             snapshot = _resolve_scan(store, scan_id)
@@ -258,9 +273,10 @@ def offenders(
         3, "--min", help="Minimum number of scans a resource must have drifted in"
     ),
     limit: int = typer.Option(10, "--limit", help="Maximum number of offenders to show"),
+    config_file: str | None = _CONFIG_OPTION,
 ) -> None:
     """Show chronic offender resources — those that drift repeatedly."""
-    store = DriftStore()
+    store = _open_store(config_file)
     try:
         rows = store.get_chronic_offenders(min_occurrences=min_occurrences, limit=limit)
     finally:
@@ -293,11 +309,12 @@ def prune(
     confirm: bool = typer.Option(
         False, "--confirm", help="Actually delete matching records (otherwise dry-run)"
     ),
+    config_file: str | None = _CONFIG_OPTION,
 ) -> None:
     """Delete scan records older than a given date."""
     before_dt = _parse_date(before)
 
-    store = DriftStore()
+    store = _open_store(config_file)
     try:
         if not confirm:
             candidates = store.list_snapshots(limit=_UNBOUNDED_LIMIT, before=before_dt)
