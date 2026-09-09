@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import os
 import signal
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from typer.testing import CliRunner
 
 import driftsentry.cli.monitor as monitor_module
 from driftsentry.cli.main import app
+from driftsentry.core.config import DriftSentryConfig
 from driftsentry.core.models import (
     DriftItem,
     DriftResult,
@@ -21,6 +23,7 @@ from driftsentry.core.models import (
     StateBackendType,
 )
 from driftsentry.history.store import DriftStore
+from driftsentry.policy.engine import PolicyEvaluation
 
 runner = CliRunner()
 
@@ -106,7 +109,9 @@ def test_monitor_max_scans_runs_exactly_n_times(
 ) -> None:
     call_count = {"n": 0}
 
-    def fake_run_scan(config, show_progress=False):
+    def fake_run_scan(
+        config: DriftSentryConfig, show_progress: bool = False
+    ) -> tuple[DriftResult, PolicyEvaluation | None]:
         call_count["n"] += 1
         return _make_result(f"scan-{call_count['n']}"), None
 
@@ -134,7 +139,9 @@ def test_monitor_once_flag_runs_single_scan(
 ) -> None:
     call_count = {"n": 0}
 
-    def fake_run_scan(config, show_progress=False):
+    def fake_run_scan(
+        config: DriftSentryConfig, show_progress: bool = False
+    ) -> tuple[DriftResult, PolicyEvaluation | None]:
         call_count["n"] += 1
         return _make_result(f"scan-{call_count['n']}"), None
 
@@ -155,17 +162,20 @@ def test_monitor_smart_alerting_skips_recurring(
     finally:
         seed_store.close()
 
-    def fake_run_scan(config, show_progress=False):
+    def fake_run_scan(
+        config: DriftSentryConfig, show_progress: bool = False
+    ) -> tuple[DriftResult, PolicyEvaluation | None]:
         return _make_result("scan-2", [_make_item("aws_instance.recurring")]), None
 
     monkeypatch.setattr(monitor_module, "run_scan", fake_run_scan)
 
-    notify_calls = []
-    monkeypatch.setattr(
-        monitor_module.SlackNotifier,
-        "notify",
-        lambda self, result: notify_calls.append(result) or True,
-    )
+    notify_calls: list[DriftResult] = []
+
+    def fake_notify(self: object, result: DriftResult) -> bool:
+        notify_calls.append(result)
+        return True
+
+    monkeypatch.setattr(monitor_module.SlackNotifier, "notify", fake_notify)
 
     result = runner.invoke(app, ["monitor", "--once", "--config", str(config_file_with_slack)])
     assert result.exit_code == 0, result.stdout
@@ -182,7 +192,9 @@ def test_monitor_smart_alerting_sends_for_new_and_regression(
     finally:
         seed_store.close()
 
-    def fake_run_scan(config, show_progress=False):
+    def fake_run_scan(
+        config: DriftSentryConfig, show_progress: bool = False
+    ) -> tuple[DriftResult, PolicyEvaluation | None]:
         return (
             _make_result(
                 "scan-2",
@@ -196,12 +208,13 @@ def test_monitor_smart_alerting_sends_for_new_and_regression(
 
     monkeypatch.setattr(monitor_module, "run_scan", fake_run_scan)
 
-    notify_calls = []
-    monkeypatch.setattr(
-        monitor_module.SlackNotifier,
-        "notify",
-        lambda self, result: notify_calls.append(result) or True,
-    )
+    notify_calls: list[DriftResult] = []
+
+    def fake_notify(self: object, result: DriftResult) -> bool:
+        notify_calls.append(result)
+        return True
+
+    monkeypatch.setattr(monitor_module.SlackNotifier, "notify", fake_notify)
 
     result = runner.invoke(app, ["monitor", "--once", "--config", str(config_file_with_slack)])
     assert result.exit_code == 0, result.stdout
@@ -216,13 +229,15 @@ def test_monitor_graceful_shutdown_stops_loop(
 ) -> None:
     call_count = {"n": 0}
 
-    def fake_run_scan(config, show_progress=False):
+    def fake_run_scan(
+        config: DriftSentryConfig, show_progress: bool = False
+    ) -> tuple[DriftResult, PolicyEvaluation | None]:
         call_count["n"] += 1
         return _make_result(f"scan-{call_count['n']}"), None
 
     monkeypatch.setattr(monitor_module, "run_scan", fake_run_scan)
 
-    def sleep_then_shutdown(total_seconds, should_stop):
+    def sleep_then_shutdown(total_seconds: float, should_stop: Callable[[], bool]) -> None:
         os.kill(os.getpid(), signal.SIGINT)
 
     monkeypatch.setattr(monitor_module, "_sleep_with_countdown", sleep_then_shutdown)

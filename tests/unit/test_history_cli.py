@@ -10,7 +10,14 @@ from typer.testing import CliRunner
 
 import driftsentry.cli.history as history_module
 from driftsentry.cli.main import app
-from driftsentry.core.models import DriftItem, DriftResult, DriftSeverity, DriftType
+from driftsentry.core.models import (
+    DriftItem,
+    DriftResult,
+    DriftSeverity,
+    DriftType,
+    IaCTool,
+    StateBackendType,
+)
 from driftsentry.history.store import DriftStore
 
 runner = CliRunner()
@@ -37,9 +44,9 @@ def _make_result(
     return DriftResult(
         scan_id=scan_id,
         timestamp=timestamp or datetime.datetime.now(),
-        iac_tool="terraform",
+        iac_tool=IaCTool.TERRAFORM,
         provider="aws",
-        state_backend="local",
+        state_backend=StateBackendType.LOCAL,
         state_source="terraform.tfstate",
         drift_items=items or [],
     )
@@ -51,13 +58,13 @@ def db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def _isolated_store(monkeypatch: pytest.MonkeyPatch, db_path: Path):
+def _isolated_store(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> None:
     """Redirect the CLI's `DriftStore()` calls to a temp database."""
     monkeypatch.setattr(history_module, "DriftStore", lambda *a, **kw: DriftStore(db_path=db_path))
 
 
 @pytest.fixture(autouse=True)
-def _wide_terminal(monkeypatch: pytest.MonkeyPatch):
+def _wide_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
     """Widen the Rich console so table columns aren't truncated in assertions."""
     monkeypatch.setenv("COLUMNS", "200")
 
