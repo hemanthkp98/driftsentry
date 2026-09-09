@@ -18,7 +18,7 @@ from driftsentry.core.models import DriftResult
 from driftsentry.history.models import DriftDelta
 from driftsentry.history.regression import RegressionDetector
 from driftsentry.history.store import DriftStore
-from driftsentry.notifications.slack import SlackNotifier as SlackNotifier
+from driftsentry.notifications.slack import SlackNotifier
 
 logger = logging.getLogger(__name__)
 console = Console()
