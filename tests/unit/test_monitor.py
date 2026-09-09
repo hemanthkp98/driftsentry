@@ -6,14 +6,12 @@ import datetime
 import os
 import signal
 from pathlib import Path
-from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
 import driftsentry.cli.monitor as monitor_module
 from driftsentry.cli.main import app
-from driftsentry.core.config import DriftSentryConfig
 from driftsentry.core.models import (
     DriftItem,
     DriftResult,
@@ -23,8 +21,6 @@ from driftsentry.core.models import (
     StateBackendType,
 )
 from driftsentry.history.store import DriftStore
-from driftsentry.notifications.slack import SlackNotifier
-from driftsentry.policy.engine import PolicyEvaluation
 
 runner = CliRunner()
 
