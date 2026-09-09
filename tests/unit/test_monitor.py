@@ -64,6 +64,28 @@ def _isolated_store(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> None:
     monkeypatch.setattr(monitor_module, "DriftStore", lambda *a, **kw: DriftStore(db_path=db_path))
 
 
+def _seed(db_path: Path, *results: DriftResult) -> None:
+    store = DriftStore(db_path=db_path)
+    try:
+        for result in results:
+            store.save(result)
+    finally:
+        store.close()
+
+
+def _counting_run_scan() -> tuple[Callable[..., tuple[DriftResult, None]], dict[str, int]]:
+    """Return a `run_scan` stub that counts calls and returns a fresh scan each time."""
+    call_count = {"n": 0}
+
+    def fake_run_scan(
+        config: DriftSentryConfig, show_progress: bool = False
+    ) -> tuple[DriftResult, PolicyEvaluation | None]:
+        call_count["n"] += 1
+        return _make_result(f"scan-{call_count['n']}"), None
+
+    return fake_run_scan, call_count
+
+
 @pytest.fixture(autouse=True)
 def _no_real_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     """Skip the real countdown sleep so tests run instantly."""
@@ -107,14 +129,7 @@ def test_monitor_rejects_interval_below_minimum(config_file: Path) -> None:
 def test_monitor_max_scans_runs_exactly_n_times(
     monkeypatch: pytest.MonkeyPatch, config_file: Path
 ) -> None:
-    call_count = {"n": 0}
-
-    def fake_run_scan(
-        config: DriftSentryConfig, show_progress: bool = False
-    ) -> tuple[DriftResult, PolicyEvaluation | None]:
-        call_count["n"] += 1
-        return _make_result(f"scan-{call_count['n']}"), None
-
+    fake_run_scan, call_count = _counting_run_scan()
     monkeypatch.setattr(monitor_module, "run_scan", fake_run_scan)
 
     result = runner.invoke(
@@ -156,11 +171,7 @@ def test_monitor_once_flag_runs_single_scan(
 def test_monitor_smart_alerting_skips_recurring(
     monkeypatch: pytest.MonkeyPatch, config_file_with_slack: Path, db_path: Path
 ) -> None:
-    seed_store = DriftStore(db_path=db_path)
-    try:
-        seed_store.save(_make_result("scan-1", [_make_item("aws_instance.recurring")]))
-    finally:
-        seed_store.close()
+    _seed(db_path, _make_result("scan-1", [_make_item("aws_instance.recurring")]))
 
     def fake_run_scan(
         config: DriftSentryConfig, show_progress: bool = False
@@ -186,11 +197,7 @@ def test_monitor_smart_alerting_skips_recurring(
 def test_monitor_smart_alerting_sends_for_new_and_regression(
     monkeypatch: pytest.MonkeyPatch, config_file_with_slack: Path, db_path: Path
 ) -> None:
-    seed_store = DriftStore(db_path=db_path)
-    try:
-        seed_store.save(_make_result("scan-1", [_make_item("aws_instance.recurring")]))
-    finally:
-        seed_store.close()
+    _seed(db_path, _make_result("scan-1", [_make_item("aws_instance.recurring")]))
 
     def fake_run_scan(
         config: DriftSentryConfig, show_progress: bool = False

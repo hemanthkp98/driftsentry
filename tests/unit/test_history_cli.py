@@ -63,6 +63,23 @@ def _isolated_store(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> None:
     monkeypatch.setattr(history_module, "DriftStore", lambda *a, **kw: DriftStore(db_path=db_path))
 
 
+def _seed(db_path: Path, *results: DriftResult) -> None:
+    store = DriftStore(db_path=db_path)
+    try:
+        for result in results:
+            store.save(result)
+    finally:
+        store.close()
+
+
+def _get_snapshot(db_path: Path, scan_id: str) -> object | None:
+    store = DriftStore(db_path=db_path)
+    try:
+        return store.get_snapshot(scan_id)
+    finally:
+        store.close()
+
+
 @pytest.fixture(autouse=True)
 def _wide_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
     """Widen the Rich console so table columns aren't truncated in assertions."""
@@ -83,11 +100,7 @@ def test_history_list_empty() -> None:
 
 
 def test_history_list_shows_scans(db_path: Path) -> None:
-    store = DriftStore(db_path=db_path)
-    try:
-        store.save(_make_result("scan-1", [_make_item("aws_instance.web")]))
-    finally:
-        store.close()
+    _seed(db_path, _make_result("scan-1", [_make_item("aws_instance.web")]))
 
     result = runner.invoke(app, ["history", "list", "--limit", "5"])
     assert result.exit_code == 0
@@ -101,11 +114,7 @@ def test_history_list_invalid_date() -> None:
 
 
 def test_history_show_valid_scan_id(db_path: Path) -> None:
-    store = DriftStore(db_path=db_path)
-    try:
-        store.save(_make_result("scan-1", [_make_item("aws_instance.web")]))
-    finally:
-        store.close()
+    _seed(db_path, _make_result("scan-1", [_make_item("aws_instance.web")]))
 
     result = runner.invoke(app, ["history", "show", "scan-1"])
     assert result.exit_code == 0
@@ -113,11 +122,7 @@ def test_history_show_valid_scan_id(db_path: Path) -> None:
 
 
 def test_history_show_partial_prefix(db_path: Path) -> None:
-    store = DriftStore(db_path=db_path)
-    try:
-        store.save(_make_result("abcdef123456", [_make_item("aws_instance.web")]))
-    finally:
-        store.close()
+    _seed(db_path, _make_result("abcdef123456", [_make_item("aws_instance.web")]))
 
     result = runner.invoke(app, ["history", "show", "abcdef12"])
     assert result.exit_code == 0
@@ -131,11 +136,7 @@ def test_history_show_invalid_scan_id() -> None:
 
 
 def test_history_diff_first_scan(db_path: Path) -> None:
-    store = DriftStore(db_path=db_path)
-    try:
-        store.save(_make_result("scan-1", [_make_item("aws_instance.web")]))
-    finally:
-        store.close()
+    _seed(db_path, _make_result("scan-1", [_make_item("aws_instance.web")]))
 
     result = runner.invoke(app, ["history", "diff"])
     assert result.exit_code == 0
@@ -143,18 +144,15 @@ def test_history_diff_first_scan(db_path: Path) -> None:
 
 
 def test_history_diff_reports_delta(db_path: Path) -> None:
-    store = DriftStore(db_path=db_path)
-    try:
-        store.save(_make_result("scan-1", [_make_item("aws_instance.web")]))
-        store.save(
-            _make_result(
-                "scan-2",
-                [_make_item("aws_instance.web"), _make_item("aws_instance.new")],
-                timestamp=datetime.datetime.now() + datetime.timedelta(minutes=1),
-            )
-        )
-    finally:
-        store.close()
+    _seed(
+        db_path,
+        _make_result("scan-1", [_make_item("aws_instance.web")]),
+        _make_result(
+            "scan-2",
+            [_make_item("aws_instance.web"), _make_item("aws_instance.new")],
+            timestamp=datetime.datetime.now() + datetime.timedelta(minutes=1),
+        ),
+    )
 
     result = runner.invoke(app, ["history", "diff"])
     assert result.exit_code == 0
@@ -169,18 +167,15 @@ def test_history_offenders_empty() -> None:
 
 
 def test_history_offenders_shows_repeat_drift(db_path: Path) -> None:
-    store = DriftStore(db_path=db_path)
-    try:
-        store.save(_make_result("scan-1", [_make_item("aws_instance.web")]))
-        store.save(
-            _make_result(
-                "scan-2",
-                [_make_item("aws_instance.web")],
-                timestamp=datetime.datetime.now() + datetime.timedelta(minutes=1),
-            )
-        )
-    finally:
-        store.close()
+    _seed(
+        db_path,
+        _make_result("scan-1", [_make_item("aws_instance.web")]),
+        _make_result(
+            "scan-2",
+            [_make_item("aws_instance.web")],
+            timestamp=datetime.datetime.now() + datetime.timedelta(minutes=1),
+        ),
+    )
 
     result = runner.invoke(app, ["history", "offenders", "--min", "2"])
     assert result.exit_code == 0
@@ -188,36 +183,18 @@ def test_history_offenders_shows_repeat_drift(db_path: Path) -> None:
 
 
 def test_history_prune_dry_run_does_not_delete(db_path: Path) -> None:
-    store = DriftStore(db_path=db_path)
-    try:
-        store.save(_make_result("scan-1", timestamp=datetime.datetime(2020, 1, 1)))
-    finally:
-        store.close()
+    _seed(db_path, _make_result("scan-1", timestamp=datetime.datetime(2020, 1, 1)))
 
     result = runner.invoke(app, ["history", "prune", "--before", "2025-01-01"])
     assert result.exit_code == 0
     assert "Dry run" in result.stdout
-
-    store = DriftStore(db_path=db_path)
-    try:
-        assert store.get_snapshot("scan-1") is not None
-    finally:
-        store.close()
+    assert _get_snapshot(db_path, "scan-1") is not None
 
 
 def test_history_prune_confirmed_deletes(db_path: Path) -> None:
-    store = DriftStore(db_path=db_path)
-    try:
-        store.save(_make_result("scan-1", timestamp=datetime.datetime(2020, 1, 1)))
-    finally:
-        store.close()
+    _seed(db_path, _make_result("scan-1", timestamp=datetime.datetime(2020, 1, 1)))
 
     result = runner.invoke(app, ["history", "prune", "--before", "2025-01-01", "--confirm"])
     assert result.exit_code == 0
     assert "Deleted 1" in result.stdout
-
-    store = DriftStore(db_path=db_path)
-    try:
-        assert store.get_snapshot("scan-1") is None
-    finally:
-        store.close()
+    assert _get_snapshot(db_path, "scan-1") is None
