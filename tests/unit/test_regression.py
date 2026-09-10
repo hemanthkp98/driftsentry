@@ -3,39 +3,51 @@
 from __future__ import annotations
 
 import datetime
+from pathlib import Path
 
 import pytest
 
-from driftsentry.core.models import DriftItem, DriftResult, DriftSeverity, DriftType
+from driftsentry.core.models import (
+    DriftItem,
+    DriftResult,
+    DriftSeverity,
+    DriftType,
+    IaCTool,
+    StateBackendType,
+)
 from driftsentry.history.models import DriftDelta
 from driftsentry.history.regression import RegressionDetector
 from driftsentry.history.store import DriftStore
 
 
 @pytest.fixture
-def store(tmp_path):
+def store(tmp_path: Path) -> DriftStore:
     db_path = tmp_path / "test.db"
     return DriftStore(db_path)
 
 
 @pytest.fixture
-def detector(store):
+def detector(store: DriftStore) -> RegressionDetector:
     return RegressionDetector(store)
 
 
-def create_drift_result(scan_id, items):
+def create_drift_result(scan_id: str, items: list[DriftItem]) -> DriftResult:
     return DriftResult(
         scan_id=scan_id,
         timestamp=datetime.datetime.now(),
-        iac_tool="terraform",
+        iac_tool=IaCTool.TERRAFORM,
         provider="aws",
-        state_backend="local",
+        state_backend=StateBackendType.LOCAL,
         state_source="terraform.tfstate",
         drift_items=items,
     )
 
 
-def create_item(address, severity=DriftSeverity.MEDIUM, drift_type=DriftType.CHANGED):
+def create_item(
+    address: str,
+    severity: DriftSeverity = DriftSeverity.MEDIUM,
+    drift_type: DriftType = DriftType.CHANGED,
+) -> DriftItem:
     return DriftItem(
         resource_address=address,
         resource_type="aws_instance",
@@ -44,7 +56,7 @@ def create_item(address, severity=DriftSeverity.MEDIUM, drift_type=DriftType.CHA
     )
 
 
-def test_first_ever_scan(detector):
+def test_first_ever_scan(detector: RegressionDetector) -> None:
     current = create_drift_result("scan-1", [create_item("aws_instance.web1")])
     report = detector.compare(current)
 
@@ -55,7 +67,7 @@ def test_first_ever_scan(detector):
     assert report.items[0].consecutive_scans == 1
 
 
-def test_new_and_recurring(store, detector):
+def test_new_and_recurring(store: DriftStore, detector: RegressionDetector) -> None:
     scan1 = create_drift_result("scan-1", [create_item("aws_instance.web1")])
     store.save(scan1)
 
@@ -83,7 +95,7 @@ def test_new_and_recurring(store, detector):
     assert web2.consecutive_scans == 1
 
 
-def test_resolved(store, detector):
+def test_resolved(store: DriftStore, detector: RegressionDetector) -> None:
     scan1 = create_drift_result("scan-1", [create_item("aws_instance.web1")])
     store.save(scan1)
 
@@ -97,7 +109,7 @@ def test_resolved(store, detector):
     assert report.items[0].consecutive_scans == 1
 
 
-def test_regression(store, detector):
+def test_regression(store: DriftStore, detector: RegressionDetector) -> None:
     # drifted in scan 1
     scan1 = create_drift_result("scan-1", [create_item("aws_instance.web1")])
     store.save(scan1)
@@ -118,7 +130,7 @@ def test_regression(store, detector):
     assert report.items[0].consecutive_scans == 1
 
 
-def test_worsened(store, detector):
+def test_worsened(store: DriftStore, detector: RegressionDetector) -> None:
     scan1 = create_drift_result(
         "scan-1", [create_item("aws_instance.web1", severity=DriftSeverity.LOW)]
     )
@@ -134,7 +146,7 @@ def test_worsened(store, detector):
     assert report.items[0].previous_severity == DriftSeverity.LOW
 
 
-def test_chronic_offenders(store):
+def test_chronic_offenders(store: DriftStore) -> None:
     store.save(create_drift_result("s1", [create_item("r1"), create_item("r2")]))
     store.save(create_drift_result("s2", [create_item("r1"), create_item("r2")]))
     store.save(create_drift_result("s3", [create_item("r1")]))
@@ -149,13 +161,13 @@ def test_chronic_offenders(store):
     assert offenders[0] == ("r1", 3)
 
 
-def test_edge_case_empty(detector):
+def test_edge_case_empty(detector: RegressionDetector) -> None:
     report = detector.compare(create_drift_result("scan-1", []))
     assert report.is_first_scan
     assert len(report.items) == 0
 
 
-def test_resource_matching_by_address(store, detector):
+def test_resource_matching_by_address(store: DriftStore, detector: RegressionDetector) -> None:
     scan1 = create_drift_result("scan-1", [create_item("addr1"), create_item("addr2")])
     store.save(scan1)
 

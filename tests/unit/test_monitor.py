@@ -68,7 +68,9 @@ def config_path(tmp_path: Path) -> str:
 # ─── --max-scans / --once ────────────────────────────────────────
 
 
-def test_monitor_runs_exactly_max_scans_then_exits(monkeypatch, config_path: str) -> None:
+def test_monitor_runs_exactly_max_scans_then_exits(
+    monkeypatch: pytest.MonkeyPatch, config_path: str
+) -> None:
     result = _make_result(["aws_instance.a"])
     scan_mock = MagicMock(return_value=(result, None))
     monkeypatch.setattr(monitor_module, "run_scan_pipeline", scan_mock)
@@ -85,7 +87,7 @@ def test_monitor_runs_exactly_max_scans_then_exits(monkeypatch, config_path: str
 
 
 def test_monitor_once_flag_runs_single_scan_and_ignores_max_scans(
-    monkeypatch, config_path: str
+    monkeypatch: pytest.MonkeyPatch, config_path: str
 ) -> None:
     result = _make_result(["aws_instance.a"])
     scan_mock = MagicMock(return_value=(result, None))
@@ -112,10 +114,10 @@ def test_monitor_rejects_interval_below_minimum(config_path: str) -> None:
 # ─── graceful shutdown ────────────────────────────────────────────
 
 
-def test_monitor_stops_early_on_sigint(monkeypatch, config_path: str) -> None:
+def test_monitor_stops_early_on_sigint(monkeypatch: pytest.MonkeyPatch, config_path: str) -> None:
     result = _make_result(["aws_instance.a"])
 
-    def _scan_then_interrupt(*args, **kwargs):
+    def _scan_then_interrupt(*args: object, **kwargs: object) -> tuple[DriftResult, None]:
         os.kill(os.getpid(), signal.SIGINT)
         return result, None
 
