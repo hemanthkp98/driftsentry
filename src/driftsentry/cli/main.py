@@ -12,6 +12,8 @@ import typer
 from rich.console import Console
 
 from driftsentry import __version__
+from driftsentry.cli.history import history_app
+from driftsentry.cli.monitor import monitor
 from driftsentry.cli.remediate import remediate
 from driftsentry.cli.report import report
 from driftsentry.cli.scan import scan
@@ -36,6 +38,8 @@ app.command(name="report", help="Generate a drift report from the last scan")(re
 app.command(name="remediate", help="Generate remediation artifacts and optionally create a PR")(
     remediate
 )
+app.command(name="monitor", help="Run continuous, regression-aware drift monitoring")(monitor)
+app.add_typer(history_app)
 
 
 @app.command()
