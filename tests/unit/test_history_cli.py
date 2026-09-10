@@ -9,9 +9,9 @@ import pytest
 from typer.testing import CliRunner
 
 import driftsentry.cli.history as history_module
+from conftest import make_drift_item, make_scan_result, seed_history
 from driftsentry.cli.main import app
 from driftsentry.history.store import DriftStore
-from tests.conftest import make_drift_item, make_scan_result, seed_history
 
 runner = CliRunner()
 
@@ -94,7 +94,9 @@ def test_history_offenders_shows_repeat_drift(history_db_path: Path) -> None:
 
 
 def test_history_prune_dry_run_does_not_delete(history_db_path: Path) -> None:
-    seed_history(history_db_path, make_scan_result("scan-1", timestamp=datetime.datetime(2020, 1, 1)))
+    seed_history(
+        history_db_path, make_scan_result("scan-1", timestamp=datetime.datetime(2020, 1, 1))
+    )
 
     result = runner.invoke(app, ["history", "prune", "--before", "2025-01-01"])
     assert result.exit_code == 0
@@ -103,7 +105,9 @@ def test_history_prune_dry_run_does_not_delete(history_db_path: Path) -> None:
 
 
 def test_history_prune_confirmed_deletes(history_db_path: Path) -> None:
-    seed_history(history_db_path, make_scan_result("scan-1", timestamp=datetime.datetime(2020, 1, 1)))
+    seed_history(
+        history_db_path, make_scan_result("scan-1", timestamp=datetime.datetime(2020, 1, 1))
+    )
 
     result = runner.invoke(app, ["history", "prune", "--before", "2025-01-01", "--confirm"])
     assert result.exit_code == 0

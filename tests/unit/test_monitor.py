@@ -11,12 +11,12 @@ import pytest
 from typer.testing import CliRunner
 
 import driftsentry.cli.monitor as monitor_module
+from conftest import make_drift_item, make_scan_result, seed_history
 from driftsentry.cli.main import app
 from driftsentry.core.config import DriftSentryConfig
 from driftsentry.core.models import DriftResult
 from driftsentry.history.store import DriftStore
 from driftsentry.policy.engine import PolicyEvaluation
-from tests.conftest import make_drift_item, make_scan_result, seed_history
 
 runner = CliRunner()
 
@@ -102,7 +102,7 @@ def test_monitor_once_flag_runs_single_scan(
         config: DriftSentryConfig, show_progress: bool = False
     ) -> tuple[DriftResult, PolicyEvaluation | None]:
         call_count["n"] += 1
-        return _make_result(f"scan-{call_count['n']}"), None
+        return make_scan_result(f"scan-{call_count['n']}"), None
 
     monkeypatch.setattr(monitor_module, "run_scan", fake_run_scan)
 
@@ -113,14 +113,16 @@ def test_monitor_once_flag_runs_single_scan(
 
 
 def test_monitor_smart_alerting_skips_recurring(
-    monkeypatch: pytest.MonkeyPatch, config_file_with_slack: Path, db_path: Path
+    monkeypatch: pytest.MonkeyPatch, config_file_with_slack: Path, history_db_path: Path
 ) -> None:
-    _seed(db_path, _make_result("scan-1", [_make_item("aws_instance.recurring")]))
+    seed_history(
+        history_db_path, make_scan_result("scan-1", [make_drift_item("aws_instance.recurring")])
+    )
 
     def fake_run_scan(
         config: DriftSentryConfig, show_progress: bool = False
     ) -> tuple[DriftResult, PolicyEvaluation | None]:
-        return _make_result("scan-2", [_make_item("aws_instance.recurring")]), None
+        return make_scan_result("scan-2", [make_drift_item("aws_instance.recurring")]), None
 
     monkeypatch.setattr(monitor_module, "run_scan", fake_run_scan)
 
@@ -139,19 +141,21 @@ def test_monitor_smart_alerting_skips_recurring(
 
 
 def test_monitor_smart_alerting_sends_for_new_and_regression(
-    monkeypatch: pytest.MonkeyPatch, config_file_with_slack: Path, db_path: Path
+    monkeypatch: pytest.MonkeyPatch, config_file_with_slack: Path, history_db_path: Path
 ) -> None:
-    _seed(db_path, _make_result("scan-1", [_make_item("aws_instance.recurring")]))
+    seed_history(
+        history_db_path, make_scan_result("scan-1", [make_drift_item("aws_instance.recurring")])
+    )
 
     def fake_run_scan(
         config: DriftSentryConfig, show_progress: bool = False
     ) -> tuple[DriftResult, PolicyEvaluation | None]:
         return (
-            _make_result(
+            make_scan_result(
                 "scan-2",
                 [
-                    _make_item("aws_instance.recurring"),
-                    _make_item("aws_instance.brand_new"),
+                    make_drift_item("aws_instance.recurring"),
+                    make_drift_item("aws_instance.brand_new"),
                 ],
             ),
             None,
@@ -184,7 +188,7 @@ def test_monitor_graceful_shutdown_stops_loop(
         config: DriftSentryConfig, show_progress: bool = False
     ) -> tuple[DriftResult, PolicyEvaluation | None]:
         call_count["n"] += 1
-        return _make_result(f"scan-{call_count['n']}"), None
+        return make_scan_result(f"scan-{call_count['n']}"), None
 
     monkeypatch.setattr(monitor_module, "run_scan", fake_run_scan)
 
