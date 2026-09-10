@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 import driftsentry.cli.scan as scan_module
@@ -140,23 +141,26 @@ def test_cli_scan_multi_region_and_account_flags(sample_state_file: Path) -> Non
         assert call_kwargs["concurrency"] == 8
 
 
-def test_last_scan_result_persists_between_invocations(tmp_path: Path, monkeypatch) -> None:
-    result_data = {
-        "scan_id": "persisted",
-        "iac_tool": "terraform",
-        "provider": "aws",
-        "region": "us-east-1",
-        "state_backend": "local",
-        "state_source": "test.tfstate",
-        "drift_items": [],
-        "duration_seconds": 0.5,
-        "errors": [],
-    }
-    from driftsentry.core.models import DriftResult
+def test_last_scan_result_persists_between_invocations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from driftsentry.core.models import DriftResult, IaCTool, StateBackendType
+
+    result = DriftResult(
+        scan_id="persisted",
+        iac_tool=IaCTool.TERRAFORM,
+        provider="aws",
+        region="us-east-1",
+        state_backend=StateBackendType.LOCAL,
+        state_source="test.tfstate",
+        drift_items=[],
+        duration_seconds=0.5,
+        errors=[],
+    )
 
     monkeypatch.chdir(tmp_path)
     scan_module._last_scan_result = None
-    scan_module._save_last_scan_result(DriftResult(**result_data))
+    scan_module._save_last_scan_result(result)
 
     loaded = scan_module.get_last_scan_result()
 

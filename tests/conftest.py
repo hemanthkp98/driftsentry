@@ -25,7 +25,8 @@ def sample_state_file() -> Path:
 @pytest.fixture
 def sample_state_dict(sample_state_file: Path) -> dict[str, Any]:
     """Parsed sample .tfstate dictionary."""
-    return json.loads(sample_state_file.read_text())
+    data: dict[str, Any] = json.loads(sample_state_file.read_text())
+    return data
 
 
 @pytest.fixture
