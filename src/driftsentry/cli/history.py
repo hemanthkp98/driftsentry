@@ -67,6 +67,10 @@ def _resolve_scan(store: DriftStore, scan_id: str) -> ScanSnapshot | None:
     return None
 
 
+def _table(title: str) -> Table:
+    return Table(title=title, show_lines=False, border_style="dim", header_style="bold cyan")
+
+
 def _reconstruct_result(store: DriftStore, snapshot: ScanSnapshot) -> DriftResult:
     """Rebuild a minimal `DriftResult` for a stored snapshot, for regression comparison."""
     items = store.get_drift_items(snapshot.scan_id)
@@ -121,12 +125,7 @@ def list_scans(
         console.print("[yellow]No scan history found.[/]")
         return
 
-    table = Table(
-        title=f"Scan History (Last {len(snapshots)} Scans)",
-        show_lines=False,
-        border_style="dim",
-        header_style="bold cyan",
-    )
+    table = _table(f"Scan History (Last {len(snapshots)} Scans)")
     table.add_column("Scan ID")
     table.add_column("Timestamp")
     table.add_column("Resources", justify="right")
@@ -173,12 +172,7 @@ def show(
         console.print(f"[green]No drift items recorded for scan {snapshot.scan_id[:8]}.[/]")
         return
 
-    table = Table(
-        title=f"Drift Items — Scan {snapshot.scan_id[:8]}",
-        show_lines=False,
-        border_style="dim",
-        header_style="bold cyan",
-    )
+    table = _table(f"Drift Items — Scan {snapshot.scan_id[:8]}")
     table.add_column("Resource Address")
     table.add_column("Resource Type")
     table.add_column("Drift Type")
@@ -236,12 +230,7 @@ def diff(
         return
 
     comparison_id = report.comparison_scan_id or ""
-    table = Table(
-        title=f"Drift Delta: {snapshot.scan_id[:8]} vs {comparison_id[:8]}",
-        show_lines=False,
-        border_style="dim",
-        header_style="bold cyan",
-    )
+    table = _table(f"Drift Delta: {snapshot.scan_id[:8]} vs {comparison_id[:8]}")
     table.add_column("Delta", justify="center")
     table.add_column("Resource")
     table.add_column("Type")
@@ -286,12 +275,7 @@ def offenders(
         console.print("[green]No chronic offenders found.[/]")
         return
 
-    table = Table(
-        title="Chronic Offenders",
-        show_lines=False,
-        border_style="dim",
-        header_style="bold cyan",
-    )
+    table = _table("Chronic Offenders")
     table.add_column("Resource Address")
     table.add_column("Drift Count", justify="right")
 

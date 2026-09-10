@@ -18,7 +18,7 @@ from driftsentry.core.models import DriftResult
 from driftsentry.history.models import DriftDelta
 from driftsentry.history.regression import RegressionDetector
 from driftsentry.history.store import DriftStore
-from driftsentry.notifications.slack import SlackNotifier
+from driftsentry.notifications.slack import SlackNotifier as SlackNotifier
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -55,18 +55,9 @@ def monitor(
 ) -> None:
     """Run the drift scan pipeline on a repeating schedule with smart alerting.
 
-    After each scan, regression detection classifies drift against the
-    previous scan. Only NEW, REGRESSION, or WORSENED drift triggers a
-    Slack alert (if configured) — RECURRING drift is suppressed to avoid
-    alert fatigue.
-
-    Examples:
-
-        driftsentry monitor --interval 60
-
-        driftsentry monitor --once
-
-        driftsentry monitor --max-scans 5
+    After each scan, regression detection classifies drift against the previous
+    scan. Only NEW, REGRESSION, or WORSENED drift triggers a Slack alert (if
+    configured) — RECURRING drift is suppressed to avoid alert fatigue.
     """
     if once:
         max_scans = 1

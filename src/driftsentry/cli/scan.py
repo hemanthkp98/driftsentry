@@ -58,16 +58,10 @@ def run_scan(
     provider: str = "aws",
     show_progress: bool = True,
 ) -> tuple[DriftResult, PolicyEvaluation | None]:
-    """Execute the drift scan pipeline and persist the result to history.
+    """Run the scan pipeline and persist the result to history. Shared by `scan` and `monitor`.
 
-    Creates the cloud provider and state reader from `config`, runs the
-    scanner, applies policy evaluation, and persists the result to the
-    durable history store if enabled. Does not render any output —
-    callers own presentation. Shared by the `scan` and `monitor` commands.
-
-    Raises:
-        ValueError: If `provider` is unsupported, or state config is invalid.
-        FileNotFoundError: If the configured state file cannot be found.
+    Raises ValueError if `provider` is unsupported, or FileNotFoundError if the
+    configured state file cannot be found.
     """
     state_reader = create_state_reader(config)
 

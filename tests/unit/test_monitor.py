@@ -73,7 +73,9 @@ def _seed(db_path: Path, *results: DriftResult) -> None:
         store.close()
 
 
-def _counting_run_scan() -> tuple[Callable[..., tuple[DriftResult, None]], dict[str, int]]:
+def _counting_run_scan() -> (
+    tuple[Callable[..., tuple[DriftResult, PolicyEvaluation | None]], dict[str, int]]
+):
     """Return a `run_scan` stub that counts calls and returns a fresh scan each time."""
     call_count = {"n": 0}
 
