@@ -9,9 +9,11 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from driftsentry.core.config import load_config
+from driftsentry.core.config import DriftSentryConfig, load_config
 from driftsentry.core.models import DriftResult, IaCTool, StateBackendType
 from driftsentry.core.scanner import DriftScanner
+from driftsentry.history.models import RegressionReport
+from driftsentry.history.regression import RegressionDetector
 from driftsentry.history.store import DriftStore
 from driftsentry.output.json_fmt import JSONFormatter
 from driftsentry.output.table import TableFormatter
@@ -50,6 +52,67 @@ def _save_last_scan_result(result: DriftResult) -> None:
         json.dumps(result.model_dump(mode="json"), indent=2, default=str),
         encoding="utf-8",
     )
+
+
+def run_scan_pipeline(
+    config: DriftSentryConfig,
+    provider: str = "aws",
+    show_progress: bool = True,
+) -> tuple[DriftResult, RegressionReport | None]:
+    """Execute the core scan pipeline: read state, scan the cloud, diff, and evaluate policy.
+
+    Persists the result to the durable history store (if enabled) and returns
+    the regression report comparing this scan against the previous one (None
+    if history is disabled). Shared by the `scan` CLI command and `monitor`.
+
+    Raises:
+        ValueError: If the provider is unsupported.
+        FileNotFoundError: If the configured state source cannot be found.
+    """
+    state_reader = create_state_reader(config)
+
+    if provider == "aws":
+        cloud_provider = AWSProvider(
+            region=config.provider.region,
+            regions=config.provider.regions,
+            profile=config.provider.profile,
+            role_arn=config.provider.role_arn,
+            accounts=config.accounts,
+            role_arn_template=config.role_arn_template,
+            custom_resources=config.provider.custom_resources,
+            resource_definitions_dirs=config.provider.resource_definitions_dirs,
+            plugins=config.provider.plugins,
+            concurrency=config.concurrency,
+        )
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+    scanner = DriftScanner(config, state_reader, cloud_provider)
+    result = scanner.scan(show_progress=show_progress)
+
+    if config.policy.enabled:
+        engine = PolicyEngine(config.policy.policy_file)
+        evaluation = engine.evaluate(result)
+
+        if evaluation.ignored_count > 0 and show_progress:
+            console.print(
+                f"  [dim]Policy: {evaluation.ignored_count} drift items ignored by policy rules[/]"
+            )
+
+    regression_report: RegressionReport | None = None
+    if config.history.enabled:
+        try:
+            history_db_path = Path(config.history.db_path) if config.history.db_path else None
+            history_store = DriftStore(db_path=history_db_path)
+            try:
+                regression_report = RegressionDetector(history_store).compare(result)
+                history_store.save(result)
+            finally:
+                history_store.close()
+        except Exception as e:
+            logger.warning(f"Failed to persist scan result to history store: {e}")
+
+    return result, regression_report
 
 
 def scan(
@@ -238,59 +301,18 @@ def scan(
         console.print("Use [bold]--state-file[/] or configure in [bold].driftsentry.yaml[/]")
         raise typer.Exit(code=1)
 
-    # Create components
+    # Run scan pipeline (state read, cloud scan, diff, policy, history persistence)
     try:
-        state_reader = create_state_reader(config)
+        result, regression_report = run_scan_pipeline(
+            config, provider=provider, show_progress=output_format == "table"
+        )
     except (ValueError, FileNotFoundError) as e:
         console.print(f"[bold red]Error:[/] {e}")
         raise typer.Exit(code=1) from None
 
-    if provider == "aws":
-        cloud_provider = AWSProvider(
-            region=config.provider.region,
-            regions=config.provider.regions,
-            profile=config.provider.profile,
-            role_arn=config.provider.role_arn,
-            accounts=config.accounts,
-            role_arn_template=config.role_arn_template,
-            custom_resources=config.provider.custom_resources,
-            resource_definitions_dirs=config.provider.resource_definitions_dirs,
-            plugins=config.provider.plugins,
-            concurrency=config.concurrency,
-        )
-    else:
-        console.print(f"[bold red]Error:[/] Unsupported provider: {provider}")
-        raise typer.Exit(code=1)
-
-    # Run scan
-    scanner = DriftScanner(config, state_reader, cloud_provider)
-    result = scanner.scan(show_progress=output_format == "table")
-
-    # Apply policy
-    if config.policy.enabled:
-        engine = PolicyEngine(config.policy.policy_file)
-        evaluation = engine.evaluate(result)
-
-        if evaluation.ignored_count > 0 and output_format == "table":
-            console.print(
-                f"  [dim]Policy: {evaluation.ignored_count} drift items ignored by policy rules[/]"
-            )
-
     # Store for report/remediate commands
     _last_scan_result = result
     _save_last_scan_result(result)
-
-    # Persist to durable history store
-    if config.history.enabled:
-        try:
-            history_db_path = Path(config.history.db_path) if config.history.db_path else None
-            history_store = DriftStore(db_path=history_db_path)
-            try:
-                history_store.save(result)
-            finally:
-                history_store.close()
-        except Exception as e:
-            logger.warning(f"Failed to persist scan result to history store: {e}")
 
     # Output
     if output_format == "json":
@@ -299,6 +321,13 @@ def scan(
     else:
         formatter_table = TableFormatter(console=console, verbose=verbose)
         formatter_table.render(result)
+
+        if regression_report is not None and not regression_report.is_first_scan:
+            console.print(
+                f"  [dim]Drift delta: {regression_report.new_count} new, "
+                f"{regression_report.resolved_count} resolved, "
+                f"{regression_report.recurring_count} recurring since last scan[/]"
+            )
 
     # Save result
     if save_result:
