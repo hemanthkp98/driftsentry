@@ -22,7 +22,7 @@ from driftsentry.history.models import DriftDelta, ScanSnapshot
 from driftsentry.history.regression import RegressionDetector
 from driftsentry.history.store import DriftStore
 
-console = Console()
+console = Console(width=200)
 
 history_app = typer.Typer(name="history", help="Query drift scan history and trends.")
 

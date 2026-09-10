@@ -10,7 +10,13 @@ import yaml
 from typer.testing import CliRunner
 
 from driftsentry.cli.main import app
-from driftsentry.core.models import DriftItem, DriftResult, DriftSeverity, DriftType, StateBackendType
+from driftsentry.core.models import (
+    DriftItem,
+    DriftResult,
+    DriftSeverity,
+    DriftType,
+    StateBackendType,
+)
 from driftsentry.history.store import DriftStore
 
 runner = CliRunner()
@@ -110,7 +116,9 @@ def test_history_list_since_filter_excludes_older_scans(db_path: Path, config_pa
 
 
 def test_history_list_invalid_date_errors(config_path: str) -> None:
-    result = runner.invoke(app, ["history", "list", "--since", "not-a-date", "--config", config_path])
+    result = runner.invoke(
+        app, ["history", "list", "--since", "not-a-date", "--config", config_path]
+    )
 
     assert result.exit_code == 1
     assert "Invalid date" in result.stdout
