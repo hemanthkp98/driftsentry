@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import json
 from pathlib import Path
 from typing import Any
@@ -9,11 +10,67 @@ from typing import Any
 import pytest
 
 from driftsentry.core.config import DriftSentryConfig
-from driftsentry.core.models import CloudResource, ResourceState, StateBackendType
+from driftsentry.core.models import (
+    CloudResource,
+    DriftItem,
+    DriftResult,
+    DriftSeverity,
+    DriftType,
+    IaCTool,
+    ResourceState,
+    StateBackendType,
+)
+from driftsentry.history.store import DriftStore
 from driftsentry.state.local import LocalStateReader
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 SAMPLE_STATE_PATH = FIXTURES_DIR / "sample_state.tfstate"
+
+
+def make_drift_item(
+    address: str,
+    severity: DriftSeverity = DriftSeverity.MEDIUM,
+    drift_type: DriftType = DriftType.CHANGED,
+) -> DriftItem:
+    """Build a minimal `DriftItem` for history/monitor CLI tests."""
+    return DriftItem(
+        resource_address=address,
+        resource_type="aws_instance",
+        drift_type=drift_type,
+        severity=severity,
+    )
+
+
+def make_scan_result(
+    scan_id: str,
+    items: list[DriftItem] | None = None,
+    timestamp: datetime.datetime | None = None,
+) -> DriftResult:
+    """Build a minimal `DriftResult` for history/monitor CLI tests."""
+    return DriftResult(
+        scan_id=scan_id,
+        timestamp=timestamp or datetime.datetime.now(),
+        iac_tool=IaCTool.TERRAFORM,
+        provider="aws",
+        state_backend=StateBackendType.LOCAL,
+        state_source="terraform.tfstate",
+        drift_items=items or [],
+    )
+
+
+def seed_history(db_path: Path, *results: DriftResult) -> None:
+    """Save `results` into a `DriftStore` at `db_path`."""
+    store = DriftStore(db_path=db_path)
+    try:
+        for result in results:
+            store.save(result)
+    finally:
+        store.close()
+
+
+@pytest.fixture
+def history_db_path(tmp_path: Path) -> Path:
+    return tmp_path / "history.db"
 
 
 @pytest.fixture

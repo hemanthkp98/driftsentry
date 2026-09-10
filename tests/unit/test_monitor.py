@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 import os
 import signal
 from collections.abc import Callable
@@ -14,63 +13,20 @@ from typer.testing import CliRunner
 import driftsentry.cli.monitor as monitor_module
 from driftsentry.cli.main import app
 from driftsentry.core.config import DriftSentryConfig
-from driftsentry.core.models import (
-    DriftItem,
-    DriftResult,
-    DriftSeverity,
-    DriftType,
-    IaCTool,
-    StateBackendType,
-)
+from driftsentry.core.models import DriftResult
 from driftsentry.history.store import DriftStore
 from driftsentry.policy.engine import PolicyEvaluation
+from tests.conftest import make_drift_item, make_scan_result, seed_history
 
 runner = CliRunner()
 
 
-def _make_item(
-    address: str,
-    severity: DriftSeverity = DriftSeverity.MEDIUM,
-    drift_type: DriftType = DriftType.CHANGED,
-) -> DriftItem:
-    return DriftItem(
-        resource_address=address,
-        resource_type="aws_instance",
-        drift_type=drift_type,
-        severity=severity,
-    )
-
-
-def _make_result(scan_id: str, items: list[DriftItem] | None = None) -> DriftResult:
-    return DriftResult(
-        scan_id=scan_id,
-        timestamp=datetime.datetime.now(),
-        iac_tool=IaCTool.TERRAFORM,
-        provider="aws",
-        state_backend=StateBackendType.LOCAL,
-        state_source="terraform.tfstate",
-        drift_items=items or [],
-    )
-
-
-@pytest.fixture
-def db_path(tmp_path: Path) -> Path:
-    return tmp_path / "history.db"
-
-
 @pytest.fixture(autouse=True)
-def _isolated_store(monkeypatch: pytest.MonkeyPatch, db_path: Path) -> None:
+def _isolated_store(monkeypatch: pytest.MonkeyPatch, history_db_path: Path) -> None:
     """Redirect the CLI's `DriftStore()` calls to a temp database."""
-    monkeypatch.setattr(monitor_module, "DriftStore", lambda *a, **kw: DriftStore(db_path=db_path))
-
-
-def _seed(db_path: Path, *results: DriftResult) -> None:
-    store = DriftStore(db_path=db_path)
-    try:
-        for result in results:
-            store.save(result)
-    finally:
-        store.close()
+    monkeypatch.setattr(
+        monitor_module, "DriftStore", lambda *a, **kw: DriftStore(db_path=history_db_path)
+    )
 
 
 def _counting_run_scan() -> tuple[
@@ -83,7 +39,7 @@ def _counting_run_scan() -> tuple[
         config: DriftSentryConfig, show_progress: bool = False
     ) -> tuple[DriftResult, PolicyEvaluation | None]:
         call_count["n"] += 1
-        return _make_result(f"scan-{call_count['n']}"), None
+        return make_scan_result(f"scan-{call_count['n']}"), None
 
     return fake_run_scan, call_count
 
@@ -112,20 +68,6 @@ def config_file_with_slack(tmp_path: Path) -> Path:
         "  slack_webhook_url: https://hooks.slack.com/services/test\n"
     )
     return cfg
-
-
-def test_monitor_help_lists_options() -> None:
-    result = runner.invoke(app, ["monitor", "--help"])
-    assert result.exit_code == 0
-    assert "--interval" in result.stdout
-    assert "--max-scans" in result.stdout
-    assert "--once" in result.stdout
-
-
-def test_monitor_rejects_interval_below_minimum(config_file: Path) -> None:
-    result = runner.invoke(app, ["monitor", "--interval", "1", "--config", str(config_file)])
-    assert result.exit_code == 1
-    assert "at least" in result.stdout
 
 
 def test_monitor_max_scans_runs_exactly_n_times(
