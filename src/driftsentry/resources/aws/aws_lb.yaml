@@ -1,0 +1,37 @@
+terraform_type: "aws_lb"
+service: "elbv2"
+description: "Application / Network Load Balancer (ELBv2)"
+
+discovery:
+  list_operation: "describe_load_balancers"
+  result_path: "LoadBalancers[]"
+  id_field: "LoadBalancerArn"
+
+id_prefix_hints:
+  - "arn:aws:elasticloadbalancing:"
+
+attributes:
+  name: "LoadBalancerName"
+  arn: "LoadBalancerArn"
+  dns_name: "DNSName"
+  load_balancer_type: "Type"
+  scheme: "Scheme"
+  vpc_id: "VpcId"
+  ip_address_type: "IpAddressType"
+  security_groups: "SecurityGroups"
+  subnets: "AvailabilityZones[].SubnetId"
+
+security_critical:
+  - "security_groups"
+  - "scheme"
+  - "subnets"
+
+noise_attributes:
+  - "dns_name"
+
+cloudtrail_events:
+  - "CreateLoadBalancer"
+  - "DeleteLoadBalancer"
+  - "ModifyLoadBalancerAttributes"
+  - "SetSecurityGroups"
+  - "SetSubnets"

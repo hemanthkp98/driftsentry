@@ -121,6 +121,37 @@ RESOURCE_EVENT_MAP: dict[str, list[str]] = {
         "UpdateFileSystem",
         "PutLifecycleConfiguration",
     ],
+    "aws_eip": [
+        "AllocateAddress",
+        "ReleaseAddress",
+        "AssociateAddress",
+        "DisassociateAddress",
+    ],
+    "aws_key_pair": [
+        "CreateKeyPair",
+        "DeleteKeyPair",
+        "ImportKeyPair",
+    ],
+    "aws_network_interface": [
+        "CreateNetworkInterface",
+        "DeleteNetworkInterface",
+        "ModifyNetworkInterfaceAttribute",
+        "AttachNetworkInterface",
+        "DetachNetworkInterface",
+    ],
+    "aws_lb": [
+        "CreateLoadBalancer",
+        "DeleteLoadBalancer",
+        "ModifyLoadBalancerAttributes",
+        "SetSecurityGroups",
+        "SetSubnets",
+    ],
+    "aws_eks_cluster": [
+        "CreateCluster",
+        "DeleteCluster",
+        "UpdateClusterVersion",
+        "UpdateClusterConfig",
+    ],
 }
 
 
