@@ -186,4 +186,3 @@ def test_cli_module_execution() -> None:
     )
     assert res.returncode == 0
     assert "DriftSentry" in res.stdout
-

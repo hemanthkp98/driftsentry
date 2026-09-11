@@ -75,7 +75,11 @@ class AWSProvider(CloudProvider):
         self._targets: list[ScanTarget] = resolver.resolve_targets()
 
         # Primary region for single-target backwards compatibility
-        self._region = region or (self._targets[0].region if self._targets else "us-east-1")
+        self._region = (
+            region
+            if (region and region.strip().lower() not in ("all", "all-regions"))
+            else (self._targets[0].region if self._targets else "us-east-1")
+        )
 
         # Map target_id -> { resource_type -> ResourceScanner }
         self._target_scanners: dict[str, dict[str, ResourceScanner]] = {}
