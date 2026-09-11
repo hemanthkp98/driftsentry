@@ -67,7 +67,7 @@ dev = [
 ]
 
 [project.scripts]
-driftsentry = "driftsentry.cli.main:app"
+driftsentry = "driftsentry.cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/hemanthkp98/driftsentry"

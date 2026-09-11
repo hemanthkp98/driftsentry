@@ -54,5 +54,11 @@ def main_callback() -> None:
     pass
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """CLI entry point for DriftSentry."""
     app()
+
+
+if __name__ == "__main__":
+    main()
+
