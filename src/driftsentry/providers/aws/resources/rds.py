@@ -25,7 +25,7 @@ class RDSScanner(ResourceScanner):
 
     @property
     def resource_types(self) -> list[str]:
-        return ["aws_db_instance"]
+        return ["aws_db_instance", "aws_rds_cluster"]
 
     def list_all(self) -> list[CloudResource]:
         resources: list[CloudResource] = []
@@ -34,6 +34,14 @@ class RDSScanner(ResourceScanner):
         for page in paginator.paginate():
             for db in page.get("DBInstances", []):
                 resources.append(self._db_to_cloud_resource(db))
+
+        try:
+            cluster_paginator = self._rds.get_paginator("describe_db_clusters")
+            for page in cluster_paginator.paginate():
+                for cluster in page.get("DBClusters", []):
+                    resources.append(self._cluster_to_cloud_resource(cluster))
+        except ClientError:
+            pass
 
         return resources
 
@@ -45,6 +53,15 @@ class RDSScanner(ResourceScanner):
                 return self._db_to_cloud_resource(instances[0])
         except ClientError:
             pass
+
+        try:
+            resp = self._rds.describe_db_clusters(DBClusterIdentifier=resource_id)
+            clusters = resp.get("DBClusters", [])
+            if clusters:
+                return self._cluster_to_cloud_resource(clusters[0])
+        except ClientError:
+            pass
+
         return None
 
     def normalize(self, raw: dict[str, Any]) -> dict[str, Any]:
@@ -96,3 +113,35 @@ class RDSScanner(ResourceScanner):
             return {t["Key"]: t["Value"] for t in resp.get("TagList", [])}
         except ClientError:
             return {}
+
+    def _cluster_to_cloud_resource(self, cluster: Mapping[str, Any]) -> CloudResource:
+        sg_ids = [
+            sg["VpcSecurityGroupId"]
+            for sg in cluster.get("VpcSecurityGroups", [])
+            if sg.get("Status") == "active"
+        ]
+
+        return CloudResource(
+            resource_id=cluster["DBClusterIdentifier"],
+            resource_type="aws_rds_cluster",
+            arn=cluster.get("DBClusterArn"),
+            region=self._region,
+            attributes={
+                "id": cluster.get("DBClusterIdentifier"),
+                "cluster_identifier": cluster.get("DBClusterIdentifier"),
+                "engine": cluster.get("Engine"),
+                "engine_version": cluster.get("EngineVersion"),
+                "database_name": cluster.get("DatabaseName"),
+                "storage_encrypted": cluster.get("StorageEncrypted", False),
+                "kms_key_id": cluster.get("KmsKeyId"),
+                "vpc_security_group_ids": sorted(sg_ids),
+                "db_subnet_group_name": cluster.get("DBSubnetGroup"),
+                "backup_retention_period": cluster.get("BackupRetentionPeriod", 1),
+                "deletion_protection": cluster.get("DeletionProtection", False),
+                "iam_database_authentication_enabled": cluster.get(
+                    "IAMDatabaseAuthenticationEnabled", False
+                ),
+                "copy_tags_to_snapshot": cluster.get("CopyTagsToSnapshot", False),
+            },
+            tags=self._get_tags(cluster.get("DBClusterArn", "")),
+        )

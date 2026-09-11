@@ -95,6 +95,32 @@ RESOURCE_EVENT_MAP: dict[str, list[str]] = {
         "UpdateService",
         "DeleteService",
     ],
+    "aws_ebs_volume": [
+        "CreateVolume",
+        "DeleteVolume",
+        "ModifyVolume",
+        "ModifyVolumeAttribute",
+    ],
+    "aws_ebs_snapshot": [
+        "CreateSnapshot",
+        "DeleteSnapshot",
+    ],
+    "aws_ami": [
+        "CreateImage",
+        "RegisterImage",
+        "DeregisterImage",
+    ],
+    "aws_rds_cluster": [
+        "CreateDBCluster",
+        "ModifyDBCluster",
+        "DeleteDBCluster",
+    ],
+    "aws_efs_file_system": [
+        "CreateFileSystem",
+        "DeleteFileSystem",
+        "UpdateFileSystem",
+        "PutLifecycleConfiguration",
+    ],
 }
 
 
