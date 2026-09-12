@@ -96,8 +96,15 @@ notifications:
     - "critical"
     - "high"
 
-# Filter noise
+# Filter noise and exclude baseline resources
 filters:
+  # exclude_tags:
+  #   managed-by: ["AFT", "AWSControlTower"]
+  #   Environment: "baseline"
+  # exclude_patterns:
+  #   - "*aft*"
+  #   - "vpc-default"
+  #   - "*-default-sg"
   ignore_attributes:
     - "tags_all"
     - "arn"
@@ -149,7 +156,38 @@ filters:
 | `monitor.smart_alerts_only`| `boolean`| `true` | Only dispatch notifications (e.g. Slack) for NEW, REGRESSION, or WORSENED drift. |
 | `notifications.slack_webhook_url` | `string` | — | Slack Incoming Webhook URL (supports `${ENV_VAR}` expansion). |
 | `notifications.notify_on` | `list` | `["critical", "high"]` | Drift severity levels that trigger Slack notifications. |
+| `filters.include_types` | `list[string]` | `[]` | Only scan these specific resource types (empty = all). |
+| `filters.exclude_types` | `list[string]` | `[]` | Skip scanning these resource types completely. |
+| `filters.exclude_tags` | `dict[string, string \| list[string]]` | `{}` | Exclude resources matching tag key-values (supports lists and `'*'`). |
+| `filters.exclude_patterns` | `list[string]` | `[]` | Exclude resources matching ID, Name, or ARN glob patterns. |
 | `filters.ignore_attributes` | `list` | `["arn", "id", ...]` | Top-level or nested attributes ignored during diff evaluation. |
+| `filters.ignore_unmanaged_types` | `list[string]` | `[]` | Cloud resource types to exclude from UNMANAGED detection. |
+
+---
+
+### Excluding Account Vending Baselines (AFT / Control Tower)
+
+When scanning or discovering resources in accounts provisioned by AWS Control Tower or Account Factory for Terraform (AFT), baseline infrastructure (default VPCs, AFT management VPCs, baseline IAM roles) can pollute scan results. You can suppress these baseline resources declaratively:
+
+```yaml
+filters:
+  # Exclude by tag
+  exclude_tags:
+    managed-by:
+      - "AFT"
+      - "aft"
+      - "AWSControlTower"
+    Environment: "baseline"
+    Terraform: "*"
+
+  # Exclude by ID, Name tag, or ARN glob pattern
+  exclude_patterns:
+    - "*aft*"
+    - "*control-tower*"
+    - "vpc-default"
+    - "*-default-sg"
+    - "arn:aws:iam::*:role/aws-service-role/*"
+```
 
 ---
 

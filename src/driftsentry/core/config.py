@@ -161,6 +161,14 @@ class ScanFilters(BaseModel):
         default_factory=list,
         description="Exclude these resource types from scanning",
     )
+    exclude_tags: dict[str, str | list[str]] = Field(
+        default_factory=dict,
+        description="Exclude resources matching any of these tag key-value pairs (value can be a string or list of matching strings; supports '*' wildcard)",
+    )
+    exclude_patterns: list[str] = Field(
+        default_factory=list,
+        description="Exclude resources whose resource ID, name, or ARN matches any of these glob patterns (case-insensitive fnmatch)",
+    )
     ignore_attributes: list[str] = Field(
         default_factory=lambda: [
             "tags_all",

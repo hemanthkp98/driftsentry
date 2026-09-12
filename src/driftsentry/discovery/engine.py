@@ -5,12 +5,17 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from typing import TYPE_CHECKING
 
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from driftsentry.core.filter import is_resource_excluded
 from driftsentry.core.models import CloudResource
 from driftsentry.discovery.models import DiscoveryResult
 from driftsentry.providers.base import CloudProvider
+
+if TYPE_CHECKING:
+    from driftsentry.core.config import ScanFilters
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +28,12 @@ class DiscoveryEngine:
         provider: CloudProvider,
         include_types: list[str] | None = None,
         exclude_types: list[str] | None = None,
+        filters: ScanFilters | None = None,
     ) -> None:
         self._provider = provider
         self._include_types = set(include_types) if include_types else None
         self._exclude_types = set(exclude_types) if exclude_types else set()
+        self._filters = filters
 
     def get_scan_types(self) -> list[str]:
         """Determine the set of resource types to scan based on filters."""
@@ -71,6 +78,8 @@ class DiscoveryEngine:
                     )
                     try:
                         found = self._provider.list_resources(rtype)
+                        if found and self._filters:
+                            found = [r for r in found if not is_resource_excluded(r, self._filters)]
                         if found:
                             resources_by_type[rtype] = found
                     except Exception as e:
@@ -87,6 +96,8 @@ class DiscoveryEngine:
             for rtype in target_types:
                 try:
                     found = self._provider.list_resources(rtype)
+                    if found and self._filters:
+                        found = [r for r in found if not is_resource_excluded(r, self._filters)]
                     if found:
                         resources_by_type[rtype] = found
                 except Exception as e:

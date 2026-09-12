@@ -86,6 +86,21 @@ filters:
   include_types: []
   # Exclude specific resource types
   exclude_types: []
+  # Exclude resources by tag key-value pairs (supports lists and '*' wildcard)
+  # exclude_tags:
+  #   managed-by:
+  #     - "AFT"
+  #     - "aft"
+  #     - "AWSControlTower"
+  #   CreatedBy: "AFT"
+  #   Environment: "baseline"
+  # Exclude resources by ID, Name, or ARN glob patterns (case-insensitive fnmatch)
+  # exclude_patterns:
+  #   - "*aft*"
+  #   - "*control-tower*"
+  #   - "vpc-default"
+  #   - "*-default-sg"
+  #   - "arn:aws:iam::*:role/aws-service-role/*"
   # Attributes to ignore during diff (noise reduction)
   ignore_attributes:
     - "tags_all"
