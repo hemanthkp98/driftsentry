@@ -37,8 +37,8 @@ class RDSScanner(ResourceScanner):
 
         try:
             cluster_paginator = self._rds.get_paginator("describe_db_clusters")
-            for page in cluster_paginator.paginate():
-                for cluster in page.get("DBClusters", []):
+            for cluster_page in cluster_paginator.paginate():
+                for cluster in cluster_page.get("DBClusters", []):
                     resources.append(self._cluster_to_cloud_resource(cluster))
         except ClientError:
             pass
@@ -55,8 +55,8 @@ class RDSScanner(ResourceScanner):
             pass
 
         try:
-            resp = self._rds.describe_db_clusters(DBClusterIdentifier=resource_id)
-            clusters = resp.get("DBClusters", [])
+            cluster_resp = self._rds.describe_db_clusters(DBClusterIdentifier=resource_id)
+            clusters = cluster_resp.get("DBClusters", [])
             if clusters:
                 return self._cluster_to_cloud_resource(clusters[0])
         except ClientError:

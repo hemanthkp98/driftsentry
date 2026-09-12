@@ -46,16 +46,19 @@ def mock_cloud_resources() -> list[CloudResource]:
 
 def test_cli_discover_help() -> None:
     """Test that driftsentry discover --help displays proper command help."""
+    import re
+
     result = runner.invoke(app, ["discover", "--help"])
     assert result.exit_code == 0
-    assert "Discover and list live cloud resources" in result.stdout
-    assert "--region" in result.stdout
-    assert "--regions" in result.stdout
-    assert "--accounts" in result.stdout
-    assert "--include-types" in result.stdout
-    assert "--exclude-types" in result.stdout
-    assert "--output" in result.stdout
-    assert "--save" in result.stdout
+    clean_stdout = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", result.stdout)
+    assert "Discover and list live cloud resources" in clean_stdout
+    assert "--region" in clean_stdout
+    assert "--regions" in clean_stdout
+    assert "--accounts" in clean_stdout
+    assert "--include-types" in clean_stdout
+    assert "--exclude-types" in clean_stdout
+    assert "--output" in clean_stdout
+    assert "--save" in clean_stdout
 
 
 def test_cli_discover_table_output(mock_cloud_resources: list[CloudResource]) -> None:

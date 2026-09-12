@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import boto3
@@ -80,7 +81,7 @@ class EBSScanner(ResourceScanner):
             pass
         return None
 
-    def _volume_to_cloud_resource(self, vol: dict[str, Any]) -> CloudResource:
+    def _volume_to_cloud_resource(self, vol: Mapping[str, Any]) -> CloudResource:
         vol_id = vol["VolumeId"]
         tags = self._extract_tags(vol.get("Tags", []))
         attrs: dict[str, Any] = {
@@ -129,7 +130,7 @@ class EBSScanner(ResourceScanner):
             pass
         return None
 
-    def _snapshot_to_cloud_resource(self, snap: dict[str, Any]) -> CloudResource:
+    def _snapshot_to_cloud_resource(self, snap: Mapping[str, Any]) -> CloudResource:
         snap_id = snap["SnapshotId"]
         tags = self._extract_tags(snap.get("Tags", []))
         attrs: dict[str, Any] = {
@@ -174,7 +175,7 @@ class EBSScanner(ResourceScanner):
             pass
         return None
 
-    def _image_to_cloud_resource(self, img: dict[str, Any]) -> CloudResource:
+    def _image_to_cloud_resource(self, img: Mapping[str, Any]) -> CloudResource:
         img_id = img["ImageId"]
         tags = self._extract_tags(img.get("Tags", []))
         attrs: dict[str, Any] = {
@@ -201,13 +202,15 @@ class EBSScanner(ResourceScanner):
     # ─── Helpers ────────────────────────────────────────────────────────
 
     @staticmethod
-    def _extract_tags(tags_list: list[dict[str, Any]]) -> dict[str, str]:
+    def _extract_tags(tags_list: Sequence[Mapping[str, Any]] | None) -> dict[str, str]:
         tags: dict[str, str] = {}
+        if not tags_list:
+            return tags
         for tag in tags_list:
             key = tag.get("Key")
             value = tag.get("Value")
             if key and value is not None:
-                tags[key] = str(value)
+                tags[str(key)] = str(value)
         return tags
 
     @staticmethod
