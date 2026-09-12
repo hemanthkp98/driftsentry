@@ -153,3 +153,94 @@ def test_scanner_does_not_mark_failed_cloud_scan_as_deleted(
 
     assert result.deleted_count == 0
     assert result.errors == ["Error scanning aws_instance: AWS unavailable"]
+
+
+def test_scanner_resource_exclusion_filters() -> None:
+    """Test DriftScanner suppresses drift for resources matching exclude_tags and exclude_patterns."""
+    # 1. State resources: one normal user resource, one AFT baseline resource
+    user_state = ResourceState(
+        address="aws_vpc.user_vpc",
+        resource_type="aws_vpc",
+        resource_name="user_vpc",
+        resource_id="vpc-user-1",
+        provider="aws",
+        attributes={"id": "vpc-user-1", "cidr_block": "10.0.0.0/16"},
+    )
+    aft_baseline_state = ResourceState(
+        address="aws_vpc.aft_baseline",
+        resource_type="aws_vpc",
+        resource_name="aft_baseline",
+        resource_id="vpc-aft-base",
+        provider="aws",
+        attributes={
+            "id": "vpc-aft-base",
+            "cidr_block": "192.168.0.0/16",
+            "tags": {"managed-by": "AFT"},
+        },
+    )
+
+    # 2. Cloud resources:
+    # - user_vpc (drifted CIDR)
+    # - aft_baseline (present in cloud with AFT tag)
+    # - unmanaged_aft_sg (unmanaged in cloud, tagged AFT)
+    # - unmanaged_default_vpc (unmanaged in cloud, named default)
+    # - unmanaged_user_bucket (unmanaged in cloud, user created)
+    cloud_resources = {
+        "aws_vpc": [
+            CloudResource(
+                resource_id="vpc-user-1",
+                resource_type="aws_vpc",
+                attributes={"id": "vpc-user-1", "cidr_block": "10.0.0.0/24"},
+                tags={"managed-by": "User"},
+            ),
+            CloudResource(
+                resource_id="vpc-aft-base",
+                resource_type="aws_vpc",
+                attributes={"id": "vpc-aft-base", "cidr_block": "192.168.0.0/24"},
+                tags={"managed-by": "AFT"},
+            ),
+            CloudResource(
+                resource_id="vpc-default",
+                resource_type="aws_vpc",
+                attributes={"id": "vpc-default"},
+                tags={"Name": "default-vpc"},
+            ),
+        ],
+        "aws_security_group": [
+            CloudResource(
+                resource_id="sg-aft-mgmt",
+                resource_type="aws_security_group",
+                attributes={"name": "aft-management-sg"},
+                tags={"managed-by": "AFT"},
+            ),
+            CloudResource(
+                resource_id="sg-user-shadow",
+                resource_type="aws_security_group",
+                attributes={"name": "shadow-sg"},
+                tags={"Environment": "user-test"},
+            ),
+        ],
+    }
+
+    config = DriftSentryConfig()
+    config.attribution.enabled = False
+    config.filters.exclude_tags = {"managed-by": ["AFT", "ControlTower"]}
+    config.filters.exclude_patterns = ["*default*", "*aft*"]
+
+    state_reader = MockStateReader([user_state, aft_baseline_state])
+    cloud_provider = MockCloudProvider(cloud_resources)
+
+    scanner = DriftScanner(config, state_reader, cloud_provider)
+    result = scanner.scan(show_progress=False)
+
+    # Verified drift items should ONLY contain:
+    # 1. aws_vpc.user_vpc (CHANGED: CIDR diff)
+    # 2. sg-user-shadow (UNMANAGED)
+    # All AFT and default resources must be excluded!
+    addresses = [item.resource_address for item in result.drift_items]
+    assert "aws_vpc.user_vpc" in addresses
+    assert any("sg-user-shadow" in addr for addr in addresses)
+    assert "aws_vpc.aft_baseline" not in addresses
+    assert not any("aft" in addr.lower() for addr in addresses)
+    assert not any("default" in addr.lower() for addr in addresses)
+    assert len(result.drift_items) == 2

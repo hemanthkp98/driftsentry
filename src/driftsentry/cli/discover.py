@@ -181,6 +181,7 @@ def discover(
         provider=cloud_provider,
         include_types=resolved_include_types,
         exclude_types=resolved_exclude_types,
+        filters=config.filters,
     )
 
     try:

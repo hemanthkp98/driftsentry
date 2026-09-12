@@ -18,6 +18,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from driftsentry.core.config import DriftSentryConfig
 from driftsentry.core.differ import DriftDiffer
+from driftsentry.core.filter import is_resource_excluded, is_state_resource_excluded
 from driftsentry.core.models import (
     CloudResource,
     DriftItem,
@@ -193,8 +194,13 @@ class DriftScanner:
         for rtype in resource_types:
             try:
                 resources = self._provider.list_resources(rtype)
-                cloud_resources[rtype] = resources
-                logger.debug(f"Found {len(resources)} {rtype} resources in cloud")
+                filtered_resources = [
+                    cr for cr in resources if not is_resource_excluded(cr, self._config.filters)
+                ]
+                cloud_resources[rtype] = filtered_resources
+                logger.debug(
+                    f"Found {len(filtered_resources)} {rtype} resources in cloud (filtered from {len(resources)})"
+                )
             except Exception as e:
                 errors.append(f"Error scanning {rtype}: {e}")
                 logger.error(f"Error scanning {rtype}: {e}")
@@ -226,6 +232,9 @@ class DriftScanner:
 
         # 1. Check each state resource against the cloud
         for state_res in state_resources:
+            if is_state_resource_excluded(state_res, self._config.filters):
+                continue
+
             if state_res.resource_type not in cloud_resources:
                 continue  # Provider doesn't support this type
 
@@ -268,6 +277,9 @@ class DriftScanner:
         state_arns = {r.attributes.get("arn") for r in state_resources if r.attributes.get("arn")}
 
         for key, cloud_res in cloud_lookup.items():
+            if is_resource_excluded(cloud_res, self._config.filters):
+                continue
+
             is_matched_by_id = key in state_ids
             is_matched_by_arn = cloud_res.arn is not None and cloud_res.arn in state_arns
 

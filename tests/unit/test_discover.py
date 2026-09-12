@@ -227,3 +227,57 @@ def test_discovery_table_formatter_verbose(mock_cloud_resources: list[CloudResou
     formatter = DiscoveryTableFormatter(verbose=True)
     # Should execute without errors
     formatter.render(result)
+
+
+def test_discovery_engine_with_exclusion_filters() -> None:
+    """Test DiscoveryEngine resource exclusion by tags and patterns."""
+    from driftsentry.core.config import ScanFilters
+
+    mock_provider = MagicMock(spec=CloudProvider)
+    mock_provider.provider_name = "aws"
+    mock_provider.supported_resource_types.return_value = ["aws_vpc", "aws_subnet"]
+
+    aft_vpc = CloudResource(
+        resource_id="vpc-aft-management",
+        resource_type="aws_vpc",
+        tags={"managed-by": "AFT"},
+    )
+    user_vpc = CloudResource(
+        resource_id="vpc-user-app",
+        resource_type="aws_vpc",
+        tags={"managed-by": "User"},
+    )
+    default_subnet = CloudResource(
+        resource_id="subnet-default-1",
+        resource_type="aws_subnet",
+        tags={"Name": "default-subnet-a"},
+    )
+    app_subnet = CloudResource(
+        resource_id="subnet-app-1",
+        resource_type="aws_subnet",
+        tags={"Name": "app-subnet-a"},
+    )
+
+    def list_side_effect(rtype: str) -> list[CloudResource]:
+        if rtype == "aws_vpc":
+            return [aft_vpc, user_vpc]
+        if rtype == "aws_subnet":
+            return [default_subnet, app_subnet]
+        return []
+
+    mock_provider.list_resources.side_effect = list_side_effect
+
+    filters = ScanFilters(
+        exclude_tags={"managed-by": "AFT"},
+        exclude_patterns=["*default*"],
+    )
+
+    engine = DiscoveryEngine(provider=mock_provider, filters=filters)
+    result = engine.discover(show_progress=False)
+
+    # aft_vpc (excluded by tag) and default_subnet (excluded by pattern) must be omitted
+    assert result.total_resources == 2
+    assert len(result.resources_by_type["aws_vpc"]) == 1
+    assert result.resources_by_type["aws_vpc"][0].resource_id == "vpc-user-app"
+    assert len(result.resources_by_type["aws_subnet"]) == 1
+    assert result.resources_by_type["aws_subnet"][0].resource_id == "subnet-app-1"
