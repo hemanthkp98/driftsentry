@@ -76,6 +76,19 @@ llm:
   # model: "claude-sonnet-4-6"  # Override default model
   max_items: 20
 
+# Scan history persistence
+history:
+  enabled: true
+  db_path: "~/.driftsentry/history.db"
+  retention_days: 90
+
+# Continuous monitoring daemon
+monitor:
+  enabled: true
+  interval_minutes: 60
+  max_scans: null
+  smart_alerts_only: true
+
 # Notifications
 notifications:
   slack_webhook_url: "${DRIFTSENTRY_SLACK_WEBHOOK}"
@@ -127,6 +140,13 @@ filters:
 | `llm.provider` | `string` | `claude` | LLM backend: `claude` or `gemini`. |
 | `llm.model` | `string` | Provider default | Custom model identifier override. |
 | `llm.max_items` | `integer` | `20` | Maximum number of drifted resources to send to LLM. |
+| `history.enabled` | `boolean` | `true` | Whether to persist scan results to the SQLite history store. |
+| `history.db_path` | `string` | `~/.driftsentry/history.db` | Override the default path to the history database. |
+| `history.retention_days`| `integer` | `90` | Auto-prune scan history older than this many days. |
+| `monitor.enabled` | `boolean` | `true` | Enable continuous drift monitoring daemon. |
+| `monitor.interval_minutes`| `integer` | `60` | Default interval between continuous scans in minutes. |
+| `monitor.max_scans` | `integer` | `null` | Stop continuous monitoring after this many scans (null = infinite). |
+| `monitor.smart_alerts_only`| `boolean`| `true` | Only dispatch notifications (e.g. Slack) for NEW, REGRESSION, or WORSENED drift. |
 | `notifications.slack_webhook_url` | `string` | — | Slack Incoming Webhook URL (supports `${ENV_VAR}` expansion). |
 | `notifications.notify_on` | `list` | `["critical", "high"]` | Drift severity levels that trigger Slack notifications. |
 | `filters.ignore_attributes` | `list` | `["arn", "id", ...]` | Top-level or nested attributes ignored during diff evaluation. |

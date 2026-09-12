@@ -66,6 +66,13 @@ history:
   # db_path: "~/.driftsentry/history.db"  # Override default database path
   retention_days: 90  # Auto-prune scan history older than this many days
 
+# Continuous monitoring daemon
+monitor:
+  enabled: true
+  interval_minutes: 60
+  max_scans: null          # null = continuous run until interrupted
+  smart_alerts_only: true  # notify only on NEW, REGRESSION, WORSENED drift
+
 # Notification settings
 notifications:
   # slack_webhook_url: "${DRIFTSENTRY_SLACK_WEBHOOK}"

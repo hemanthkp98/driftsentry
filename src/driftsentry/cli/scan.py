@@ -229,6 +229,11 @@ def scan(
         "--save",
         help="Save scan result to JSON file",
     ),
+    no_history: bool = typer.Option(
+        False,
+        "--no-history",
+        help="Disable saving scan result to history and skip regression calculation",
+    ),
 ) -> None:
     """Scan infrastructure for drift between IaC state and live cloud resources.
 
@@ -293,6 +298,8 @@ def scan(
         config.attribution.enabled = False
     if no_policy:
         config.policy.enabled = False
+    if no_history:
+        config.history.enabled = False
     config.verbose = verbose
 
     # Validate config

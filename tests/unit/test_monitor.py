@@ -6,7 +6,7 @@ import datetime
 import os
 import signal
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 
 import driftsentry.cli.monitor as monitor_module
 from driftsentry.cli.main import app
+from driftsentry.core.config import DriftSentryConfig
 from driftsentry.core.models import (
     DriftItem,
     DriftResult,
@@ -197,3 +198,41 @@ def test_smart_alerting_no_notifier_configured_is_noop() -> None:
 
     # Should not raise when no Slack webhook is configured.
     monitor_module._send_smart_alert(None, result, report)
+
+
+@patch("driftsentry.cli.monitor.load_config")
+@patch("driftsentry.cli.monitor._run_one_scan")
+@patch("driftsentry.cli.monitor._sleep_with_countdown")
+def test_monitor_honors_config_interval(
+    mock_sleep: MagicMock, mock_run: MagicMock, mock_load: MagicMock
+) -> None:
+    config = DriftSentryConfig()
+    config.monitor.interval_minutes = 15
+    config.monitor.max_scans = 2
+    mock_load.return_value = config
+
+    result = runner.invoke(app, ["monitor"])
+
+    assert result.exit_code == 0
+    # It should sleep for 15 minutes = 900 seconds
+    assert mock_sleep.call_count == 1
+    mock_sleep.assert_called_with(900, mock_sleep.call_args[0][1])
+    assert mock_run.call_count == 2
+
+
+@patch("driftsentry.cli.monitor.load_config")
+@patch("driftsentry.cli.monitor._run_one_scan")
+@patch("driftsentry.cli.monitor._sleep_with_countdown")
+def test_monitor_honors_cli_interval_override(
+    mock_sleep: MagicMock, mock_run: MagicMock, mock_load: MagicMock
+) -> None:
+    config = DriftSentryConfig()
+    config.monitor.interval_minutes = 15
+    mock_load.return_value = config
+
+    result = runner.invoke(app, ["monitor", "--interval", "10", "--max-scans", "2"])
+
+    assert result.exit_code == 0
+    # It should sleep for 10 minutes = 600 seconds
+    assert mock_sleep.call_count == 1
+    mock_sleep.assert_called_with(600, mock_sleep.call_args[0][1])
