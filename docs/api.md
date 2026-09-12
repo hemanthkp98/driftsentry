@@ -44,6 +44,7 @@ driftsentry scan [OPTIONS]
 | `--config` | `-c` | Path to `.driftsentry.yaml` configuration file | Auto-discovered |
 | `--no-attribution`| | Skip CloudTrail attribution lookups for faster scan | `false` |
 | `--no-policy` | | Skip policy evaluation rules | `false` |
+| `--no-history` | | Disable saving scan result to history and skip regression calculation | `false` |
 | `--verbose` | `-v` | Show detailed attribute-level diff table | `false` |
 | `--save` | | Save scan result to a JSON file | None |
 
@@ -154,4 +155,70 @@ driftsentry remediate --ai --ai-provider gemini
 # Automatically create a GitHub PR with AI-enriched descriptions
 export GITHUB_TOKEN="ghp_..."
 driftsentry remediate --ai --create-pr --repo "myorg/infra-repo" --base-branch "main"
+```
+
+---
+
+## 4. `driftsentry history`
+
+Query the local SQLite-backed drift history store.
+
+### Commands
+
+- `list`: Show recent scan snapshots
+- `show`: Show detailed report for a specific scan snapshot
+- `diff`: Compare a specific scan against the previous scan
+- `offenders`: Show resources that frequently drift (chronic offenders)
+- `prune`: Delete scan history older than a specific date
+
+### Examples
+
+```bash
+# Query recent scan history
+driftsentry history list --limit 10
+
+# Show a specific scan by partial ID
+driftsentry history show a1b2c3d4
+
+# Compare last scan against previous to see delta
+driftsentry history diff
+
+# Inspect repeat offenders
+driftsentry history offenders --min 3 --limit 5
+
+# Prune history
+driftsentry history prune --before 2026-08-01 --confirm
+```
+
+---
+
+## 5. `driftsentry monitor`
+
+Run a continuous daemon to perform drift scans at regular intervals with smart alerting.
+
+```bash
+driftsentry monitor [OPTIONS]
+```
+
+### Options
+
+| Option | Flag | Description | Default |
+|---|---|---|---|
+| `--interval` | | Minutes between scans (minimum 5) | `config.monitor.interval_minutes` |
+| `--provider` | `-p` | Cloud provider (`aws`) | `aws` |
+| `--config` | `-c` | Path to `.driftsentry.yaml` configuration file | Auto-discovered |
+| `--max-scans` | | Stop after this many scans | Unlimited |
+| `--once` | | Run a single scan and exit | `false` |
+
+### Examples
+
+```bash
+# Run continuous monitoring daemon using interval from config
+driftsentry monitor
+
+# Run 5 scans, 15 minutes apart
+driftsentry monitor --max-scans 5 --interval 15
+
+# One-shot monitor with smart alert dispatch
+driftsentry monitor --once
 ```

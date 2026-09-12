@@ -28,8 +28,8 @@ ALERT_DELTAS = {DriftDelta.NEW, DriftDelta.REGRESSION, DriftDelta.WORSENED}
 
 
 def monitor(
-    interval: int = typer.Option(
-        60,
+    interval: int | None = typer.Option(
+        None,
         "--interval",
         help=f"Minutes between scans (minimum {MIN_INTERVAL_MINUTES})",
     ),
@@ -69,14 +69,22 @@ def monitor(
 
         driftsentry monitor --max-scans 5 --interval 15
     """
-    if interval < MIN_INTERVAL_MINUTES:
+    config = load_config(config_file)
+
+    actual_interval = interval if interval is not None else config.monitor.interval_minutes
+    if actual_interval < MIN_INTERVAL_MINUTES:
         console.print(
             f"[bold red]Error:[/] --interval must be at least {MIN_INTERVAL_MINUTES} minutes."
         )
         raise typer.Exit(code=1)
 
-    scan_limit = 1 if once else max_scans
-    config = load_config(config_file)
+    scan_limit = 1 if once else (max_scans if max_scans is not None else config.monitor.max_scans)
+
+    if not config.history.enabled:
+        console.print(
+            "[yellow]⚠️  Warning: Continuous monitoring requires history to perform regression detection. History is disabled, proceeding without smart alerting.[/]"
+        )
+
     notifier = (
         SlackNotifier(config.notifications.slack_webhook_url)
         if config.notifications.slack_webhook_url
@@ -104,7 +112,7 @@ def monitor(
             if shutdown_requested or (scan_limit is not None and scans_run >= scan_limit):
                 break
 
-            _sleep_with_countdown(interval * 60, lambda: shutdown_requested)
+            _sleep_with_countdown(actual_interval * 60, lambda: shutdown_requested)
             if shutdown_requested:
                 break
     finally:
