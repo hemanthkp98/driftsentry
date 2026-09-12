@@ -1,0 +1,35 @@
+terraform_type: "aws_efs_file_system"
+service: "efs"
+description: "Amazon Elastic File System (EFS)"
+
+discovery:
+  list_operation: "describe_file_systems"
+  result_path: "FileSystems[]"
+  id_field: "FileSystemId"
+
+id_prefix_hints:
+  - "fs-"
+
+attributes:
+  creation_token: "CreationToken"
+  encrypted: "Encrypted"
+  kms_key_id: "KmsKeyId"
+  performance_mode: "PerformanceMode"
+  throughput_mode: "ThroughputMode"
+  provisioned_throughput_in_mibps: "ProvisionedThroughputInMibps"
+  number_of_mount_targets: "NumberOfMountTargets"
+  size_in_bytes: "SizeInBytes.Value"
+
+security_critical:
+  - "encrypted"
+  - "kms_key_id"
+
+noise_attributes:
+  - "size_in_bytes"
+  - "number_of_mount_targets"
+
+cloudtrail_events:
+  - "CreateFileSystem"
+  - "DeleteFileSystem"
+  - "UpdateFileSystem"
+  - "PutLifecycleConfiguration"

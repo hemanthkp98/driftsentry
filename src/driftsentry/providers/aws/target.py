@@ -49,6 +49,11 @@ class TargetResolver:
         accounts: list[AccountConfig] | None = None,
         role_arn_template: str | None = None,
     ) -> None:
+        # Normalize singular region 'all' into regions list
+        if region and region.strip().lower() in ("all", "all-regions"):
+            regions = (regions or []) + [region.strip()]
+            region = None
+
         self._region = region
         self._regions = [r.strip() for r in (regions or []) if r and r.strip()]
         self._profile = profile

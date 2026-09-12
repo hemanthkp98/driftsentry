@@ -40,6 +40,12 @@ Verify your installation:
 driftsentry version
 ```
 
+> [!TIP]
+> **Windows Users:** If `driftsentry` is not recognized as a command after installing via `pip`, your Python `Scripts` folder is likely not on your system `PATH`. You can:
+> - Run commands directly via module execution: `python -m driftsentry <command>` (or `py -m driftsentry <command>`).
+> - Or add your Python `Scripts` directory (e.g. `%APPDATA%\Python\Python3xx\Scripts` or `%LOCALAPPDATA%\Programs\Python\Python3xx\Scripts`) to your `PATH` environment variable.
+> - Or install via [pipx](https://pypa.github.io/pipx/) which configures PATH automatically: `pipx install driftsentry`.
+
 ---
 
 ## Running with Docker

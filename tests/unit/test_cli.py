@@ -166,3 +166,23 @@ def test_last_scan_result_persists_between_invocations(
 
     assert loaded is not None
     assert loaded.scan_id == "persisted"
+
+
+def test_cli_main_entrypoint_function() -> None:
+    from driftsentry.cli.main import main
+
+    assert callable(main)
+
+
+def test_cli_module_execution() -> None:
+    import subprocess
+    import sys
+
+    res = subprocess.run(
+        [sys.executable, "-m", "driftsentry", "version"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0
+    assert "DriftSentry" in res.stdout

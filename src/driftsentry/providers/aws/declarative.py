@@ -210,6 +210,14 @@ class GenericAWSDeclarativeScanner(ResourceScanner):
     def _extract_tags(raw: dict[str, Any]) -> dict[str, str]:
         """Extract resource tags from standard AWS formats."""
         tags_raw = raw.get("Tags") or raw.get("tags") or raw.get("TagList") or []
+        if not tags_raw:
+            # Check if tags are in a nested wrapper dict (e.g. {"cluster": {"tags": ...}})
+            for v in raw.values():
+                if isinstance(v, dict):
+                    tags_raw = v.get("Tags") or v.get("tags") or v.get("TagList") or []
+                    if tags_raw:
+                        break
+
         if isinstance(tags_raw, dict):
             return {str(k): str(v) for k, v in tags_raw.items()}
         if isinstance(tags_raw, list):

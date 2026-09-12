@@ -93,6 +93,35 @@ def test_target_resolver_all_regions_expansion() -> None:
         assert [t.region for t in targets] == ["ap-southeast-1", "us-east-1", "us-west-2"]
 
 
+def test_target_resolver_singular_region_all_expansion() -> None:
+    """Verify singular region='all' expands properly and never yields region 'all'."""
+    resolver = TargetResolver(region="all")
+    with patch("driftsentry.providers.aws.provider.AWSProvider._create_session") as mock_sess:
+        mock_instance = MagicMock()
+        mock_ec2 = MagicMock()
+        mock_ec2.describe_regions.return_value = {
+            "Regions": [
+                {"RegionName": "us-east-1"},
+                {"RegionName": "us-west-2"},
+            ]
+        }
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
+
+        def client_side_effect(service: str, **kwargs: object) -> MagicMock:
+            if service == "ec2":
+                return mock_ec2
+            return mock_sts
+
+        mock_instance.client.side_effect = client_side_effect
+        mock_sess.return_value = mock_instance
+
+        targets = resolver.resolve_targets()
+        assert len(targets) == 2
+        assert "all" not in [t.region for t in targets]
+        assert [t.region for t in targets] == ["us-east-1", "us-west-2"]
+
+
 def test_target_resolver_multi_account_and_template() -> None:
     """Test multi-account resolution with role_arn_template."""
     accounts = [

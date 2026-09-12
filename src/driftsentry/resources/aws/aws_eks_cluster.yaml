@@ -1,0 +1,43 @@
+terraform_type: "aws_eks_cluster"
+service: "eks"
+description: "Amazon Elastic Kubernetes Service (EKS) Cluster"
+
+discovery:
+  list_operation: "list_clusters"
+  result_path: "clusters[]"
+  id_field: "@"
+  describe_operation: "describe_cluster"
+  describe_params:
+    name: "{id}"
+  attributes_path: "cluster"
+
+id_prefix_hints:
+  - "arn:aws:eks:"
+
+attributes:
+  name: "name"
+  arn: "arn"
+  version: "version"
+  role_arn: "roleArn"
+  endpoint: "endpoint"
+  platform_version: "platformVersion"
+  status: "status"
+  subnet_ids: "resourcesVpcConfig.subnetIds"
+  security_group_ids: "resourcesVpcConfig.securityGroupIds"
+  endpoint_public_access: "resourcesVpcConfig.endpointPublicAccess"
+  endpoint_private_access: "resourcesVpcConfig.endpointPrivateAccess"
+
+security_critical:
+  - "endpoint_public_access"
+  - "role_arn"
+  - "security_group_ids"
+
+noise_attributes:
+  - "platform_version"
+  - "endpoint"
+
+cloudtrail_events:
+  - "CreateCluster"
+  - "DeleteCluster"
+  - "UpdateClusterVersion"
+  - "UpdateClusterConfig"

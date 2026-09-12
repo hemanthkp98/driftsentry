@@ -24,7 +24,15 @@ class EC2Scanner(ResourceScanner):
 
     @property
     def resource_types(self) -> list[str]:
-        return ["aws_instance", "aws_security_group", "aws_vpc", "aws_subnet"]
+        return [
+            "aws_instance",
+            "aws_security_group",
+            "aws_vpc",
+            "aws_subnet",
+            "aws_eip",
+            "aws_key_pair",
+            "aws_network_interface",
+        ]
 
     def list_all(self) -> list[CloudResource]:
         """List all EC2 resources across supported types."""
@@ -33,6 +41,9 @@ class EC2Scanner(ResourceScanner):
         resources.extend(self._list_security_groups())
         resources.extend(self._list_vpcs())
         resources.extend(self._list_subnets())
+        resources.extend(self._list_eips())
+        resources.extend(self._list_key_pairs())
+        resources.extend(self._list_network_interfaces())
         return resources
 
     def get_by_id(self, resource_id: str) -> CloudResource | None:
@@ -46,6 +57,21 @@ class EC2Scanner(ResourceScanner):
                 return self._get_vpc(resource_id)
             elif resource_id.startswith("subnet-"):
                 return self._get_subnet(resource_id)
+            elif resource_id.startswith("eipalloc-"):
+                return self._get_eip(resource_id)
+            elif resource_id.startswith("eni-"):
+                return self._get_network_interface(resource_id)
+            elif resource_id.startswith("key-"):
+                return self._get_key_pair(resource_id)
+            else:
+                # Key pairs may be referenced by key name
+                kp = self._get_key_pair(resource_id)
+                if kp is not None:
+                    return kp
+                # EIP may be referenced by public IP
+                eip = self._get_eip_by_ip(resource_id)
+                if eip is not None:
+                    return eip
         except Exception as e:
             logger.error(f"Error getting EC2 resource {resource_id}: {e}")
         return None
@@ -280,6 +306,157 @@ class EC2Scanner(ResourceScanner):
                 tags=self._extract_tags(subnet),
             )
         return None
+
+    # ─── Elastic IPs ─────────────────────────────────────────
+
+    def _list_eips(self) -> list[CloudResource]:
+        resources: list[CloudResource] = []
+        try:
+            resp = self._ec2.describe_addresses()
+            for addr in resp.get("Addresses", []):
+                resources.append(self._address_to_cloud_resource(addr))
+        except Exception as e:
+            logger.error(f"Error listing Elastic IPs: {e}")
+            raise
+        return resources
+
+    def _get_eip(self, allocation_id: str) -> CloudResource | None:
+        try:
+            resp = self._ec2.describe_addresses(AllocationIds=[allocation_id])
+            addrs = resp.get("Addresses", [])
+            if addrs:
+                return self._address_to_cloud_resource(addrs[0])
+        except Exception:
+            pass
+        return None
+
+    def _get_eip_by_ip(self, public_ip: str) -> CloudResource | None:
+        try:
+            resp = self._ec2.describe_addresses(PublicIps=[public_ip])
+            addrs = resp.get("Addresses", [])
+            if addrs:
+                return self._address_to_cloud_resource(addrs[0])
+        except Exception:
+            pass
+        return None
+
+    def _address_to_cloud_resource(self, addr: Mapping[str, Any]) -> CloudResource:
+        alloc_id = addr.get("AllocationId") or addr.get("PublicIp", "unknown")
+        tags = self._extract_tags(addr)
+        attrs: dict[str, Any] = {
+            "id": alloc_id,
+            "allocation_id": addr.get("AllocationId"),
+            "public_ip": addr.get("PublicIp"),
+            "private_ip_address": addr.get("PrivateIpAddress"),
+            "domain": addr.get("Domain"),
+            "instance": addr.get("InstanceId"),
+            "instance_id": addr.get("InstanceId"),
+            "network_interface_id": addr.get("NetworkInterfaceId"),
+            "network_interface_owner_id": addr.get("NetworkInterfaceOwnerId"),
+            "association_id": addr.get("AssociationId"),
+            "tags": tags,
+        }
+        return CloudResource(
+            resource_id=alloc_id,
+            resource_type="aws_eip",
+            arn=f"arn:aws:ec2:{self._region}::elastic-ip/{alloc_id}",
+            region=self._region,
+            attributes=attrs,
+            tags=tags,
+        )
+
+    # ─── Key Pairs ───────────────────────────────────────────
+
+    def _list_key_pairs(self) -> list[CloudResource]:
+        resources: list[CloudResource] = []
+        try:
+            resp = self._ec2.describe_key_pairs()
+            for kp in resp.get("KeyPairs", []):
+                resources.append(self._key_pair_to_cloud_resource(kp))
+        except Exception as e:
+            logger.error(f"Error listing key pairs: {e}")
+            raise
+        return resources
+
+    def _get_key_pair(self, key_id_or_name: str) -> CloudResource | None:
+        try:
+            if key_id_or_name.startswith("key-"):
+                resp = self._ec2.describe_key_pairs(KeyPairIds=[key_id_or_name])
+            else:
+                resp = self._ec2.describe_key_pairs(KeyNames=[key_id_or_name])
+            kps = resp.get("KeyPairs", [])
+            if kps:
+                return self._key_pair_to_cloud_resource(kps[0])
+        except Exception:
+            pass
+        return None
+
+    def _key_pair_to_cloud_resource(self, kp: Mapping[str, Any]) -> CloudResource:
+        key_id = kp.get("KeyPairId") or kp.get("KeyName", "unknown")
+        tags = self._extract_tags(kp)
+        attrs: dict[str, Any] = {
+            "id": kp.get("KeyName") or key_id,
+            "key_name": kp.get("KeyName"),
+            "key_pair_id": kp.get("KeyPairId"),
+            "key_type": kp.get("KeyType"),
+            "fingerprint": kp.get("KeyFingerprint"),
+            "tags": tags,
+        }
+        return CloudResource(
+            resource_id=kp.get("KeyName") or key_id,
+            resource_type="aws_key_pair",
+            arn=f"arn:aws:ec2:{self._region}::key-pair/{key_id}",
+            region=self._region,
+            attributes=attrs,
+            tags=tags,
+        )
+
+    # ─── Network Interfaces (ENIs) ───────────────────────────
+
+    def _list_network_interfaces(self) -> list[CloudResource]:
+        resources: list[CloudResource] = []
+        try:
+            paginator = self._ec2.get_paginator("describe_network_interfaces")
+            for page in paginator.paginate():
+                for eni in page.get("NetworkInterfaces", []):
+                    resources.append(self._network_interface_to_cloud_resource(eni))
+        except Exception as e:
+            logger.error(f"Error listing network interfaces: {e}")
+            raise
+        return resources
+
+    def _get_network_interface(self, eni_id: str) -> CloudResource | None:
+        try:
+            resp = self._ec2.describe_network_interfaces(NetworkInterfaceIds=[eni_id])
+            enis = resp.get("NetworkInterfaces", [])
+            if enis:
+                return self._network_interface_to_cloud_resource(enis[0])
+        except Exception:
+            pass
+        return None
+
+    def _network_interface_to_cloud_resource(self, eni: Mapping[str, Any]) -> CloudResource:
+        eni_id = eni["NetworkInterfaceId"]
+        tags = self._extract_tags(eni)
+        sg_ids = [g.get("GroupId") for g in eni.get("Groups", []) if g.get("GroupId")]
+        attrs: dict[str, Any] = {
+            "id": eni_id,
+            "subnet_id": eni.get("SubnetId"),
+            "vpc_id": eni.get("VpcId"),
+            "private_ip": eni.get("PrivateIpAddress"),
+            "security_groups": sorted(sg_ids),
+            "description": eni.get("Description"),
+            "source_dest_check": eni.get("SourceDestCheck", True),
+            "tags": tags,
+        }
+        return CloudResource(
+            resource_id=eni_id,
+            resource_type="aws_network_interface",
+            arn=f"arn:aws:ec2:{self._region}::network-interface/{eni_id}",
+            region=self._region,
+            attributes=attrs,
+            tags=tags,
+        )
 
     # ── Helpers ──────────────────────────────────────────────
 
