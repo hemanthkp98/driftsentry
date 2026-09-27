@@ -12,9 +12,6 @@ from rich.console import Console
 from driftsentry.core.config import DriftSentryConfig, load_config
 from driftsentry.core.models import DriftResult, IaCTool, StateBackendType
 from driftsentry.core.scanner import DriftScanner
-from driftsentry.history.models import RegressionReport
-from driftsentry.history.regression import RegressionDetector
-from driftsentry.history.store import DriftStore
 from driftsentry.output.json_fmt import JSONFormatter
 from driftsentry.output.table import TableFormatter
 from driftsentry.policy.engine import PolicyEngine
@@ -58,12 +55,8 @@ def run_scan_pipeline(
     config: DriftSentryConfig,
     provider: str = "aws",
     show_progress: bool = True,
-) -> tuple[DriftResult, RegressionReport | None]:
+) -> DriftResult:
     """Execute the core scan pipeline: read state, scan the cloud, diff, and evaluate policy.
-
-    Persists the result to the durable history store (if enabled) and returns
-    the regression report comparing this scan against the previous one (None
-    if history is disabled). Shared by the `scan` CLI command and `monitor`.
 
     Raises:
         ValueError: If the provider is unsupported.
@@ -99,20 +92,7 @@ def run_scan_pipeline(
                 f"  [dim]Policy: {evaluation.ignored_count} drift items ignored by policy rules[/]"
             )
 
-    regression_report: RegressionReport | None = None
-    if config.history.enabled:
-        try:
-            history_db_path = Path(config.history.db_path) if config.history.db_path else None
-            history_store = DriftStore(db_path=history_db_path)
-            try:
-                regression_report = RegressionDetector(history_store).compare(result)
-                history_store.save(result)
-            finally:
-                history_store.close()
-        except Exception as e:
-            logger.warning(f"Failed to persist scan result to history store: {e}")
-
-    return result, regression_report
+    return result
 
 
 def scan(
@@ -229,11 +209,6 @@ def scan(
         "--save",
         help="Save scan result to JSON file",
     ),
-    no_history: bool = typer.Option(
-        False,
-        "--no-history",
-        help="Disable saving scan result to history and skip regression calculation",
-    ),
 ) -> None:
     """Scan infrastructure for drift between IaC state and live cloud resources.
 
@@ -298,8 +273,6 @@ def scan(
         config.attribution.enabled = False
     if no_policy:
         config.policy.enabled = False
-    if no_history:
-        config.history.enabled = False
     config.verbose = verbose
 
     # Validate config
@@ -308,9 +281,9 @@ def scan(
         console.print("Use [bold]--state-file[/] or configure in [bold].driftsentry.yaml[/]")
         raise typer.Exit(code=1)
 
-    # Run scan pipeline (state read, cloud scan, diff, policy, history persistence)
+    # Run scan pipeline (state read, cloud scan, diff, policy)
     try:
-        result, regression_report = run_scan_pipeline(
+        result = run_scan_pipeline(
             config, provider=provider, show_progress=output_format == "table"
         )
     except (ValueError, FileNotFoundError) as e:
@@ -328,13 +301,6 @@ def scan(
     else:
         formatter_table = TableFormatter(console=console, verbose=verbose)
         formatter_table.render(result)
-
-        if regression_report is not None and not regression_report.is_first_scan:
-            console.print(
-                f"  [dim]Drift delta: {regression_report.new_count} new, "
-                f"{regression_report.resolved_count} resolved, "
-                f"{regression_report.recurring_count} recurring since last scan[/]"
-            )
 
     # Save result
     if save_result:

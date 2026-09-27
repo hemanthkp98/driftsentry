@@ -129,6 +129,7 @@ import boto3
 from driftsentry.core.models import CloudResource
 from driftsentry.providers.base import ResourceScanner, register_scanner
 
+
 @register_scanner("aws")
 class CustomDynamoScanner(ResourceScanner):
     def __init__(self, session: boto3.Session, region: str) -> None:
@@ -149,7 +150,10 @@ class CustomDynamoScanner(ResourceScanner):
                     resource_id=name,
                     resource_type="aws_dynamodb_table",
                     region=self.region,
-                    attributes={"name": name, "billing_mode": detail.get("BillingModeSummary", {}).get("BillingMode")},
+                    attributes={
+                        "name": name,
+                        "billing_mode": detail.get("BillingModeSummary", {}).get("BillingMode"),
+                    },
                 )
             )
         return resources
