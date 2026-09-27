@@ -227,3 +227,37 @@ def test_add_exclusion_to_config_idempotent(tmp_path: Path) -> None:
 
     assert data["provider"]["region"] == "us-west-2"
     assert data["filters"]["exclude_patterns"] == ["bucket-foo", "bucket-bar"]
+
+
+@patch("driftsentry.cli.triage.run_scan_pipeline")
+def test_triage_zero_config_auto_discovery_runs_scan(
+    mock_run_pipeline: patch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    sample_drift_result: DriftResult,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    mock_run_pipeline.return_value = sample_drift_result
+
+    state_file = tmp_path / "terraform.tfstate"
+    state_file.write_text('{"version": 4, "resources": []}')
+
+    result = runner.invoke(app, ["triage", "--non-interactive", "--auto-adopt"])
+
+    assert result.exit_code == 0
+    assert "Auto-discovered state" in result.stdout
+    mock_run_pipeline.assert_called_once()
+    called_config = mock_run_pipeline.call_args[0][0]
+    assert called_config.state.path == str(state_file)
+
+
+def test_triage_zero_config_failure_shows_checked_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["triage"])
+
+    assert result.exit_code == 1
+    assert "No scan result found and state auto-discovery failed" in result.stdout
+    assert "Checked paths" in result.stdout

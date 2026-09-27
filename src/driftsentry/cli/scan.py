@@ -16,6 +16,12 @@ from driftsentry.output.json_fmt import JSONFormatter
 from driftsentry.output.table import TableFormatter
 from driftsentry.policy.engine import PolicyEngine
 from driftsentry.providers.aws.provider import AWSProvider
+from driftsentry.state.auto_discovery import (
+    StateDiscoveryError,
+    apply_auto_discovered_state,
+    discover_terraform_state,
+    format_discovery_error,
+)
 from driftsentry.state.factory import create_state_reader
 
 logger = logging.getLogger(__name__)
@@ -100,7 +106,7 @@ def scan(
         None,
         "--state-file",
         "-s",
-        help="Path to local .tfstate file",
+        help="Path to local .tfstate file (auto-discovered if omitted)",
     ),
     state_backend: str | None = typer.Option(
         None,
@@ -274,6 +280,17 @@ def scan(
     if no_policy:
         config.policy.enabled = False
     config.verbose = verbose
+
+    # Auto-discovery if no state source was specified via CLI or config
+    if not config.state.path and not config.state.s3_bucket:
+        try:
+            discovered = discover_terraform_state()
+            apply_auto_discovered_state(config, discovered)
+            if output_format == "table":
+                console.print(f"[dim]Auto-discovered state:[/] {discovered.summary}")
+        except StateDiscoveryError as e:
+            console.print(format_discovery_error(e))
+            raise typer.Exit(code=1) from None
 
     # Validate config
     if not config.state.path and config.state.backend == StateBackendType.LOCAL:
