@@ -32,6 +32,12 @@ from driftsentry.core.models import (
     StateBackendType,
 )
 from driftsentry.remediation.generator import RemediationGenerator
+from driftsentry.state.auto_discovery import (
+    StateDiscoveryError,
+    apply_auto_discovered_state,
+    discover_terraform_state,
+    format_discovery_error,
+)
 
 console = Console()
 
@@ -219,7 +225,7 @@ def triage(
         None,
         "--state-file",
         "-s",
-        help="Path to local .tfstate file if no previous scan exists",
+        help="Path to local .tfstate file (auto-discovered if omitted)",
     ),
     config_file: str | None = typer.Option(
         None,
@@ -297,6 +303,7 @@ def triage(
 
     if result is None:
         if state_file:
+            config.state.backend = StateBackendType.LOCAL
             config.state.path = state_file
             console.print(f"[dim]No previous scan found. Scanning state {state_file}...[/]")
             try:
@@ -304,12 +311,34 @@ def triage(
             except Exception as e:
                 console.print(f"[bold red]Scan error:[/] {e}")
                 raise typer.Exit(code=1) from None
-        else:
+        elif config.state.path or config.state.s3_bucket:
+            target = config.state.path or f"s3://{config.state.s3_bucket}/{config.state.s3_key}"
             console.print(
-                "[bold red]Error:[/] No scan result found.\n"
-                "Run [bold]driftsentry scan --state-file <path>[/] first, or specify [bold]--input[/] / [bold]--state-file[/]."
+                f"[dim]No previous scan found. Scanning configured state ({target})...[/]"
             )
-            raise typer.Exit(code=1)
+            try:
+                result = run_scan_pipeline(config)
+            except Exception as e:
+                console.print(f"[bold red]Scan error:[/] {e}")
+                raise typer.Exit(code=1) from None
+        else:
+            try:
+                discovered = discover_terraform_state()
+                apply_auto_discovered_state(config, discovered)
+                console.print(f"[dim]Auto-discovered state:[/] {discovered.summary}")
+                console.print(
+                    f"[dim]No previous scan found. Scanning state ({discovered.summary})...[/]"
+                )
+                result = run_scan_pipeline(config)
+            except StateDiscoveryError as e:
+                console.print(
+                    "[bold red]Error:[/] No scan result found and state auto-discovery failed.\n"
+                )
+                console.print(format_discovery_error(e))
+                raise typer.Exit(code=1) from None
+            except Exception as e:
+                console.print(f"[bold red]Scan error:[/] {e}")
+                raise typer.Exit(code=1) from None
 
     if not result.has_drift or not result.drift_items:
         console.print("[bold green]✅ Everything in sync! No drift to triage.[/]")
