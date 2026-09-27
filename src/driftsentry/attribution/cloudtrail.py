@@ -324,8 +324,22 @@ class CloudTrailAttributor:
             logger.debug(f"CloudTrail lookup error for {resource_id}: {e}")
             return []
 
-        # Sort by time, most recent first
-        all_events.sort(key=lambda e: e.get("eventTime", ""), reverse=True)
+        # Sort by time, most recent first (safely handle None/missing timestamps)
+        min_dt = datetime.datetime.min.replace(tzinfo=datetime.UTC)
+
+        def _sort_key(e: dict[str, Any]) -> datetime.datetime:
+            t = e.get("eventTime")
+            if isinstance(t, datetime.datetime):
+                return t if t.tzinfo else t.replace(tzinfo=datetime.UTC)
+            if isinstance(t, str) and t.strip():
+                try:
+                    dt = datetime.datetime.fromisoformat(t.replace("Z", "+00:00"))
+                    return dt if dt.tzinfo else dt.replace(tzinfo=datetime.UTC)
+                except (ValueError, TypeError):
+                    pass
+            return min_dt
+
+        all_events.sort(key=_sort_key, reverse=True)
         return all_events
 
     def _lookup_events(
@@ -361,9 +375,21 @@ class CloudTrailAttributor:
         if username and not user_identity.get("userName"):
             user_identity["userName"] = username
 
+        # Standardize eventTime into timezone-aware datetime or None
+        raw_time = event.get("EventTime") or detail.get("eventTime")
+        parsed_time: datetime.datetime | None = None
+        if isinstance(raw_time, datetime.datetime):
+            parsed_time = raw_time if raw_time.tzinfo else raw_time.replace(tzinfo=datetime.UTC)
+        elif isinstance(raw_time, str) and raw_time.strip():
+            try:
+                dt = datetime.datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
+                parsed_time = dt if dt.tzinfo else dt.replace(tzinfo=datetime.UTC)
+            except (ValueError, TypeError):
+                parsed_time = None
+
         return {
             "eventName": event.get("EventName") or detail.get("eventName"),
-            "eventTime": event.get("EventTime") or detail.get("eventTime"),
+            "eventTime": parsed_time,
             "sourceIPAddress": detail.get("sourceIPAddress") or event.get("sourceIPAddress"),
             "userAgent": detail.get("userAgent") or event.get("userAgent", ""),
             "userIdentity": user_identity,
