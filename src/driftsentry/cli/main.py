@@ -12,6 +12,7 @@ import typer
 from rich.console import Console
 
 from driftsentry import __version__
+from driftsentry.cli.check import check
 from driftsentry.cli.discover import discover
 from driftsentry.cli.remediate import remediate
 from driftsentry.cli.report import report
@@ -34,6 +35,10 @@ app = typer.Typer(
 
 # Register sub-commands
 app.command(name="scan", help="Scan for infrastructure drift")(scan)
+app.command(
+    name="check",
+    help="CI/CD drift check with deterministic exit codes and step summaries",
+)(check)
 app.command(name="triage", help="Interactively triage and reconcile detected drift")(triage)
 app.command(name="discover", help="Discover and list live cloud resources without IaC state")(
     discover

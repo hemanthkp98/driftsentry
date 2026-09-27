@@ -1,0 +1,57 @@
+name: "DriftSentry IaC Drift Detection"
+
+on:
+  schedule:
+    # Run every morning at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  id-token: write  # Required for AWS OIDC authentication
+  contents: read   # Required to read repository code
+  issues: write    # Optional: for alerting via GitHub Issues
+  pull-requests: write # Optional: for commenting on PRs
+
+jobs:
+  drift-check:
+    name: "Scan & Check Infrastructure Drift"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install DriftSentry
+        run: |
+          pip install "driftsentry[ai]"
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DRIFTSENTRY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Run Drift Check
+        id: drift_check
+        run: |
+          # driftsentry check automatically renders to $GITHUB_STEP_SUMMARY
+          # Exits 0 if clean, 2 if drift matches --fail-on criteria, 1 on operational error
+          driftsentry check \
+            --fail-on critical \
+            --output-markdown drift-summary.md \
+            --save scan-result.json
+
+      - name: Upload Drift Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: driftsentry-scan-result
+          path: |
+            scan-result.json
+            drift-summary.md

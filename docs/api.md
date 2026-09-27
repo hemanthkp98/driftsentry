@@ -78,7 +78,65 @@ driftsentry scan \
 
 ---
 
-## 2. `driftsentry report`
+## 2. `driftsentry check`
+
+Non-interactive CI/CD command with deterministic exit codes and native GitHub Actions Step Summary rendering.
+
+```bash
+driftsentry check [OPTIONS]
+```
+
+### Options
+
+| Option | Flag | Description | Default |
+|---|---|---|---|
+| `--fail-on` | | Drift failure threshold: `any`, `critical`, `high`, `none`, `never` | `any` |
+| `--github-step-summary` | | Path to GitHub Step Summary file | `$GITHUB_STEP_SUMMARY` |
+| `--output-markdown` | | Export PR-ready comment markdown file | None |
+| `--output` | `-o` | Console output format: `table`, `json`, `none` | `table` |
+| `--state-file` | `-s` | Path to local `.tfstate` file | Auto-discovered |
+| `--state-backend` | | State backend type (`local` or `s3`) | `local` |
+| `--s3-bucket` | | S3 bucket for remote state | None |
+| `--s3-key` | | S3 object key (path) for remote state | None |
+| `--provider` | `-p` | Cloud provider (`aws`) | `aws` |
+| `--region` | `-r` | Primary AWS region to scan | Auto-discovered / `us-east-1` |
+| `--regions` | `-R` | Comma-separated list of AWS regions to scan, or `all` | Config default |
+| `--profile` | | AWS CLI profile name | Default profile |
+| `--role-arn` | | AWS IAM Role ARN to assume | None |
+| `--accounts` | `-A` | Comma-separated AWS account IDs, names, or profiles | Config default |
+| `--role-arn-template` | | Template for cross-account role assumption | None |
+| `--concurrency` | | Max concurrent worker threads | `4` |
+| `--iac-tool` | | IaC engine (`terraform` or `opentofu`) | `terraform` |
+| `--include-types` | | Comma-separated resource types to include | All supported |
+| `--exclude-types` | | Comma-separated resource types to exclude | None |
+| `--config` | `-c` | Path to `.driftsentry.yaml` configuration file | Auto-discovered |
+| `--no-attribution`| | Skip CloudTrail attribution lookups | `false` |
+| `--no-policy` | | Skip policy evaluation rules | `false` |
+| `--verbose` | `-v` | Show detailed attribute-level diff table | `false` |
+| `--save` | | Save scan result to a JSON file | None |
+
+### Exit Codes
+
+- `0`: Clean (no drift detected) or drift detected below `--fail-on` threshold.
+- `2`: Drift detected matching `--fail-on` criteria.
+- `1`: Operational or configuration error.
+
+### Examples
+
+```bash
+# Zero-config check in GitHub Actions (auto-detects $GITHUB_STEP_SUMMARY)
+driftsentry check
+
+# Block pipeline only on critical security drift
+driftsentry check --fail-on critical
+
+# Non-blocking run generating PR comment markdown
+driftsentry check --fail-on none --output-markdown pr-comment.md
+```
+
+---
+
+## 3. `driftsentry report`
 
 Renders reports from the last scan in memory or from a saved scan JSON file.
 

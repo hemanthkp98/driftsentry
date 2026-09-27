@@ -101,6 +101,75 @@ def run_scan_pipeline(
     return result
 
 
+def apply_cli_overrides(
+    config: DriftSentryConfig,
+    state_file: str | None = None,
+    state_backend: str | None = None,
+    s3_bucket: str | None = None,
+    s3_key: str | None = None,
+    region: str | None = None,
+    regions: str | None = None,
+    profile: str | None = None,
+    role_arn: str | None = None,
+    accounts: str | None = None,
+    role_arn_template: str | None = None,
+    concurrency: int | None = None,
+    iac_tool: str | None = None,
+    include_types: str | None = None,
+    exclude_types: str | None = None,
+    no_attribution: bool = False,
+    no_policy: bool = False,
+    verbose: bool = False,
+) -> None:
+    """Apply CLI argument overrides to a DriftSentryConfig instance."""
+    if state_file:
+        config.state.backend = StateBackendType.LOCAL
+        config.state.path = state_file
+    if state_backend:
+        config.state.backend = StateBackendType(state_backend)
+    if s3_bucket:
+        config.state.s3_bucket = s3_bucket
+    if s3_key:
+        config.state.s3_key = s3_key
+    if region:
+        config.provider.region = region
+    if regions:
+        config.provider.regions = [r.strip() for r in regions.split(",") if r.strip()]
+    if profile:
+        config.provider.profile = profile
+    if role_arn:
+        config.provider.role_arn = role_arn
+    if role_arn_template:
+        config.role_arn_template = role_arn_template
+    if concurrency:
+        config.concurrency = concurrency
+    if accounts:
+        from driftsentry.core.config import AccountConfig
+
+        acc_list: list[AccountConfig] = []
+        for a in accounts.split(","):
+            a_clean = a.strip()
+            if not a_clean:
+                continue
+            if a_clean.isdigit() and len(a_clean) == 12:
+                acc_list.append(AccountConfig(id=a_clean))
+            else:
+                acc_list.append(AccountConfig(name=a_clean))
+        config.accounts = acc_list
+
+    if iac_tool:
+        config.iac_tool = IaCTool(iac_tool)
+    if include_types:
+        config.filters.include_types = [t.strip() for t in include_types.split(",")]
+    if exclude_types:
+        config.filters.exclude_types = [t.strip() for t in exclude_types.split(",")]
+    if no_attribution:
+        config.attribution.enabled = False
+    if no_policy:
+        config.policy.enabled = False
+    config.verbose = verbose
+
+
 def scan(
     state_file: str | None = typer.Option(
         None,
@@ -234,52 +303,26 @@ def scan(
     config = load_config(config_file)
 
     # CLI overrides
-    if state_file:
-        config.state.backend = StateBackendType.LOCAL
-        config.state.path = state_file
-    if state_backend:
-        config.state.backend = StateBackendType(state_backend)
-    if s3_bucket:
-        config.state.s3_bucket = s3_bucket
-    if s3_key:
-        config.state.s3_key = s3_key
-    if region:
-        config.provider.region = region
-    if regions:
-        config.provider.regions = [r.strip() for r in regions.split(",") if r.strip()]
-    if profile:
-        config.provider.profile = profile
-    if role_arn:
-        config.provider.role_arn = role_arn
-    if role_arn_template:
-        config.role_arn_template = role_arn_template
-    if concurrency:
-        config.concurrency = concurrency
-    if accounts:
-        from driftsentry.core.config import AccountConfig
-
-        acc_list: list[AccountConfig] = []
-        for a in accounts.split(","):
-            a_clean = a.strip()
-            if not a_clean:
-                continue
-            if a_clean.isdigit() and len(a_clean) == 12:
-                acc_list.append(AccountConfig(id=a_clean))
-            else:
-                acc_list.append(AccountConfig(name=a_clean))
-        config.accounts = acc_list
-
-    if iac_tool:
-        config.iac_tool = IaCTool(iac_tool)
-    if include_types:
-        config.filters.include_types = [t.strip() for t in include_types.split(",")]
-    if exclude_types:
-        config.filters.exclude_types = [t.strip() for t in exclude_types.split(",")]
-    if no_attribution:
-        config.attribution.enabled = False
-    if no_policy:
-        config.policy.enabled = False
-    config.verbose = verbose
+    apply_cli_overrides(
+        config=config,
+        state_file=state_file,
+        state_backend=state_backend,
+        s3_bucket=s3_bucket,
+        s3_key=s3_key,
+        region=region,
+        regions=regions,
+        profile=profile,
+        role_arn=role_arn,
+        accounts=accounts,
+        role_arn_template=role_arn_template,
+        concurrency=concurrency,
+        iac_tool=iac_tool,
+        include_types=include_types,
+        exclude_types=exclude_types,
+        no_attribution=no_attribution,
+        no_policy=no_policy,
+        verbose=verbose,
+    )
 
     # Auto-discovery if no state source was specified via CLI or config
     if not config.state.path and not config.state.s3_bucket:

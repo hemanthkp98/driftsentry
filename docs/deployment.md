@@ -8,6 +8,8 @@ Automate scheduled infrastructure drift scans, generate report artifacts, and en
 
 DriftSentry is designed for headless automation in CI/CD environments (GitHub Actions, GitLab CI) to continuously detect configuration drift, attribute live changes to specific IAM actors via CloudTrail, and automatically open Pull Requests with corrective HCL code.
 
+> For in-depth CI/CD patterns, PR comment bots, and exit code reference, see [CI/CD & GitHub Actions Integration](ci-cd-integration.md).
+
 ---
 
 ## GitHub Actions Workflow
@@ -53,13 +55,12 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DRIFTSENTRY_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Run Drift Scan
+      - name: Run Drift Check
+        # driftsentry check automatically renders to $GITHUB_STEP_SUMMARY
         run: |
-          driftsentry scan \
-            --state-backend s3 \
-            --s3-bucket ${{ secrets.TF_STATE_BUCKET }} \
-            --s3-key production/terraform.tfstate \
-            --region us-east-1 \
+          driftsentry check \
+            --fail-on critical \
+            --output-markdown drift-summary.md \
             --save scan-result.json
 
       - name: Generate HTML Drift Report
