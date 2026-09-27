@@ -187,35 +187,6 @@ class ScanFilters(BaseModel):
     )
 
 
-class HistoryConfig(BaseModel):
-    """Configuration for durable scan history persistence."""
-
-    enabled: bool = Field(default=True, description="Whether to persist scan results to history")
-    db_path: str | None = Field(
-        default=None,
-        description="Override default history database path (default: ~/.driftsentry/history.db)",
-    )
-    retention_days: int = Field(
-        default=90,
-        description="Auto-prune scan history older than this many days",
-    )
-
-
-class MonitorConfig(BaseModel):
-    """Configuration for continuous drift monitoring daemon."""
-
-    enabled: bool = Field(default=True, description="Enable continuous drift monitoring daemon")
-    interval_minutes: int = Field(
-        default=60, description="Interval between scans in minutes (minimum: 5)"
-    )
-    max_scans: int | None = Field(
-        default=None, description="Max scans to run before exiting (None = run indefinitely)"
-    )
-    smart_alerts_only: bool = Field(
-        default=True, description="Send notifications only on NEW, REGRESSION, or WORSENED drift"
-    )
-
-
 class LLMConfig(BaseModel):
     """Configuration for AI-powered smart remediation."""
 
@@ -254,8 +225,6 @@ class DriftSentryConfig(BaseModel):
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
     filters: ScanFilters = Field(default_factory=ScanFilters)
     llm: LLMConfig = Field(default_factory=LLMConfig)
-    history: HistoryConfig = Field(default_factory=HistoryConfig)
-    monitor: MonitorConfig = Field(default_factory=MonitorConfig)
     verbose: bool = Field(default=False, description="Enable verbose output")
 
 

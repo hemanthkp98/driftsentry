@@ -10,9 +10,7 @@ Infrastructure-as-Code (IaC) drift detection, CloudTrail actor attribution, and 
 
 ## Why It Exists
 
-Cloud environments continuously drift away from committed Terraform code due to emergency console hotfixes, uncoordinated script executions, and out-of-band updates. DriftSentry detects configuration discrepancies between live AWS infrastructure and your state files, pinpoints the exact IAM identity responsible using CloudTrail history, and generates production-ready HCL patches or Pull Requests with zero human intervention.
-
-With its **Continuous Drift Monitoring** capabilities, DriftSentry also acts as an "immune system," tracking scan history, classifying drift deltas (NEW, REGRESSION, RECURRING), identifying chronic offenders, and suppressing alert fatigue over time.
+Cloud environments continuously drift away from committed Terraform code due to emergency console hotfixes, uncoordinated script executions, and out-of-band updates. DriftSentry detects configuration discrepancies between live AWS infrastructure and your state files, pinpoints the exact IAM identity responsible using CloudTrail history, and provides interactive triage and automated remediation with zero human friction.
 
 ---
 
@@ -25,18 +23,14 @@ pip install "driftsentry[ai]"
 # 2. Scan live AWS infrastructure against your state file
 driftsentry scan --state-file ./terraform.tfstate
 
-# 3. View your persistent scan history and identify repeat offenders
-driftsentry history list
-driftsentry history offenders --min 3
+# 3. Interactively triage and reconcile drift item-by-item
+driftsentry triage
 
 # 4. Generate an interactive HTML drift report
 driftsentry report --format html --output drift-report.html
 
 # 5. Auto-remediate and open a Pull Request with AI root-cause analysis
 driftsentry remediate --ai --create-pr --repo "myorg/infra-repo"
-
-# Or run continuously with smart alerting
-driftsentry monitor
 ```
 
 ---
@@ -44,11 +38,10 @@ driftsentry monitor
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) — Installation options, AWS credentials setup, running first scans, and Docker usage.
-- [Continuous Monitoring & History](docs/continuous-monitoring.md) — Persistent SQLite store, regression delta lifecycle, and smart alerting daemon.
 - [Multi-Account & Multi-Region](docs/multi-account-multi-region.md) — Enterprise AWS Organizations setup, role templates, dynamic region discovery, and parallel execution.
 - [Configuration](docs/configuration.md) — `.driftsentry.yaml` schema, environment variables, and recommended read-only IAM policy.
-- [CLI Reference](docs/api.md) — Complete command options, flags, and exit codes for `scan`, `report`, and `remediate`.
-- [Architecture & Internals](docs/architecture.md) — Pipeline design, diff engine algorithms, CloudTrail correlation, and SQLite history store.
+- [CLI Reference](docs/api.md) — Complete command options, flags, and exit codes for `scan`, `triage`, `report`, and `remediate`.
+- [Architecture & Internals](docs/architecture.md) — Pipeline design, diff engine algorithms, and CloudTrail correlation.
 - [AI Smart Remediation](docs/ai-remediation.md) — Claude and Gemini LLM setup, prompt guardrails, and auto-generated HCL blocks.
 - [Policy as Code](docs/policy-as-code.md) — Severity classification rules, noise suppression, and CI/CD threshold controls.
 - [Deployment & CI/CD](docs/deployment.md) — Scheduled scans in GitHub Actions and GitLab CI with automated Slack alerting.
@@ -59,11 +52,11 @@ driftsentry monitor
 
 ## Architecture
 
-DriftSentry processes infrastructure drift through an automated pipeline enriched by historical regression intelligence:
+DriftSentry processes infrastructure drift through a focused, automated pipeline:
 
 ```
 IaC State (.tfstate) ──┐
-                       ├──► Deep Diff Engine ──► CloudTrail Attribution ──► History & Regression ──► LLM Remediation & PR
+                       ├──► Deep Diff Engine ──► CloudTrail Attribution ──► Interactive Triage & Remediation (PR / Import)
 Live AWS Cloud API  ───┘
 ```
 

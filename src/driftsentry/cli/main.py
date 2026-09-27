@@ -13,11 +13,10 @@ from rich.console import Console
 
 from driftsentry import __version__
 from driftsentry.cli.discover import discover
-from driftsentry.cli.history import history_app
-from driftsentry.cli.monitor import monitor
 from driftsentry.cli.remediate import remediate
 from driftsentry.cli.report import report
 from driftsentry.cli.scan import scan
+from driftsentry.cli.triage import triage
 
 console = Console()
 
@@ -35,6 +34,7 @@ app = typer.Typer(
 
 # Register sub-commands
 app.command(name="scan", help="Scan for infrastructure drift")(scan)
+app.command(name="triage", help="Interactively triage and reconcile detected drift")(triage)
 app.command(name="discover", help="Discover and list live cloud resources without IaC state")(
     discover
 )
@@ -42,8 +42,6 @@ app.command(name="report", help="Generate a drift report from the last scan")(re
 app.command(name="remediate", help="Generate remediation artifacts and optionally create a PR")(
     remediate
 )
-app.command(name="monitor", help="Run continuous, regression-aware drift monitoring")(monitor)
-app.add_typer(history_app)
 
 
 @app.command()
