@@ -6,10 +6,13 @@ Comprehensive command-line interface reference for `driftsentry scan`, `driftsen
 
 ## Overview
 
-DriftSentry provides three primary subcommands:
+DriftSentry provides dedicated subcommands for the drift lifecycle:
 1. `driftsentry scan` — Scan live infrastructure and compare against IaC state.
-2. `driftsentry report` — Render multi-format reports from scan results.
-3. `driftsentry remediate` — Generate import scripts, idiomatic HCL blocks, revert plans, or open PRs.
+2. `driftsentry check` — CI/CD drift check command with deterministic exit codes and step summaries.
+3. `driftsentry report` — Render multi-format reports from scan results.
+4. `driftsentry remediate` — Generate import scripts, idiomatic HCL blocks, revert plans, or open PRs.
+5. `driftsentry triage` — Interactively review and reconcile drift item-by-item.
+6. `driftsentry baseline` — Manage fingerprint-based acknowledged drift baselines.
 
 ---
 
@@ -44,6 +47,8 @@ driftsentry scan [OPTIONS]
 | `--config` | `-c` | Path to `.driftsentry.yaml` configuration file | Auto-discovered |
 | `--no-attribution`| | Skip CloudTrail attribution lookups for faster scan | `false` |
 | `--no-policy` | | Skip policy evaluation rules | `false` |
+| `--baseline` / `--no-baseline` | | Filter detected drift against baseline ledger | `true` if ledger exists |
+| `--baseline-file` | | Path to baseline file (defaults to `.driftsentry-baseline.json`) | None |
 | `--verbose` | `-v` | Show detailed attribute-level diff table | `false` |
 | `--save` | | Save scan result to a JSON file | None |
 
@@ -237,6 +242,8 @@ driftsentry triage [OPTIONS]
 | `--auto-adopt` | | Automatically adopt all drifted items (non-interactive) | `false` |
 | `--auto-revert` | | Automatically generate revert plans for all items (non-interactive) | `false` |
 | `--auto-ignore` | | Automatically add all items to exclude patterns in config | `false` |
+| `--auto-acknowledge`| | Automatically acknowledge all drifted items into baseline | `false` |
+| `--baseline-file` | | Path to baseline file (defaults to `.driftsentry-baseline.json`) | None |
 
 ### Interactive Actions
 
@@ -244,6 +251,7 @@ For each drifted resource, you can select:
 - **`[A]dopt`**: Generate Terraform import blocks (for unmanaged resources) or updated HCL snippets.
 - **`[R]evert`**: Generate AWS CLI revert commands or plan to undo the live change.
 - **`[I]gnore`**: Automatically append the resource ID/pattern to `.driftsentry.yaml` exclusion rules.
+- **`[K] Acknowledge`**: Record drift item fingerprint into `.driftsentry-baseline.json` ledger so it is suppressed in future scans.
 - **`[S]kip`**: Leave the resource untouched.
 - **`[Q]uit`**: Exit the triage session early.
 
@@ -253,9 +261,124 @@ For each drifted resource, you can select:
 # Interactively triage the last scan
 driftsentry triage
 
-# Triage a specific saved scan file
-driftsentry triage --input scan-result.json
+# Triage and acknowledge intentional drift into baseline
+driftsentry triage --baseline-file .driftsentry-baseline.json
 
-# Run non-interactive auto-adoption
-driftsentry triage --input scan-result.json --non-interactive --auto-adopt
+# Non-interactive auto-acknowledgment of drift in CI/CD pipeline
+driftsentry triage --auto-acknowledge --non-interactive
+```
+
+---
+
+## 5. `driftsentry check`
+
+CI/CD drift check command with deterministic exit codes and step summaries.
+
+```bash
+driftsentry check [OPTIONS]
+```
+
+### Options
+
+| Option | Flag | Description | Default |
+|---|---|---|---|
+| `--state-file` | `-s` | Path to local `.tfstate` file | None |
+| `--state-backend` | | State backend type (`local` or `s3`) | `local` |
+| `--s3-bucket` | | S3 bucket for remote state | None |
+| `--s3-key` | | S3 object key (path) for remote state | None |
+| `--fail-on` | | Drift severity threshold causing non-zero exit (`none`, `low`, `medium`, `high`, `critical`) | `critical` |
+| `--github-step-summary`| | Path to write GitHub Actions Step Summary markdown | `$GITHUB_STEP_SUMMARY` |
+| `--baseline` / `--no-baseline` | | Filter detected drift against baseline ledger | `true` if ledger exists |
+| `--baseline-file` | | Path to baseline file (defaults to `.driftsentry-baseline.json`) | None |
+| `--output` | `-o` | Output format (`table`, `json`, `none`) | `table` |
+| `--save` | | Save scan result to a JSON file | None |
+| `--verbose` | `-v` | Show detailed attribute-level diff table | `false` |
+
+### Deterministic Exit Codes
+
+- `0`: Scan passed. Either no drift was detected, all drift is acknowledged in baseline ledger, or remaining drift is below the `--fail-on` threshold.
+- `1`: Execution error (e.g. invalid credentials, missing state file, configuration error).
+- `2`: Policy failure. Unacknowledged or regressed drift meets or exceeds the `--fail-on` threshold.
+
+### Examples
+
+```bash
+# Standard CI gate failing only on critical unacknowledged drift
+driftsentry check --state-file terraform.tfstate --fail-on critical
+
+# CI check with automated GitHub step summary and baseline suppression
+driftsentry check --state-file terraform.tfstate --github-step-summary $GITHUB_STEP_SUMMARY
+
+# Disable baseline suppression in CI to verify absolute parity
+driftsentry check --state-file terraform.tfstate --no-baseline
+```
+
+---
+
+## 6. `driftsentry baseline`
+
+Manage fingerprint-based acknowledged drift baselines.
+
+```bash
+driftsentry baseline [COMMAND] [OPTIONS]
+```
+
+### Subcommands
+
+#### `driftsentry baseline save`
+
+Captures detected drift from the last scan (or executes a new scan) and records canonical SHA-256 fingerprints into the baseline ledger.
+
+```bash
+driftsentry baseline save [OPTIONS]
+```
+
+| Option | Flag | Description | Default |
+|---|---|---|---|
+| `--file` | `-f` | Path to baseline file | `.driftsentry-baseline.json` |
+| `--message` | `-m` | Reason or ticket reference for acknowledgment | None |
+| `--by` | | Author or operator identity | Current user |
+| `--force` | | Overwrite existing baseline entries completely instead of merging | `false` |
+| `--state-file` | `-s` | Path to state file if a new scan must be executed | None |
+
+#### `driftsentry baseline show`
+
+Displays active acknowledged entries in the baseline ledger in table or JSON format.
+
+```bash
+driftsentry baseline show [OPTIONS]
+```
+
+| Option | Flag | Description | Default |
+|---|---|---|---|
+| `--file` | `-f` | Path to baseline file | `.driftsentry-baseline.json` |
+| `--format` | | Output format: `table`, `json` | `table` |
+
+#### `driftsentry baseline clear`
+
+Clears all entries from the baseline ledger.
+
+```bash
+driftsentry baseline clear [OPTIONS]
+```
+
+| Option | Flag | Description | Default |
+|---|---|---|---|
+| `--file` | `-f` | Path to baseline file | `.driftsentry-baseline.json` |
+| `--force` | `-f` | Clear without interactive confirmation | `false` |
+
+### Examples
+
+```bash
+# Acknowledge all drift from the latest scan with ticket reference
+driftsentry baseline save -m "Hotfix incident INC-4091" --by "alice"
+
+# Inspect active baseline entries
+driftsentry baseline show
+
+# Output baseline entries as JSON
+driftsentry baseline show --format json
+
+# Clear baseline entries with confirmation prompt
+driftsentry baseline clear
 ```

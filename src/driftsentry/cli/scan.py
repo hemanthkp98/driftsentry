@@ -9,6 +9,11 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from driftsentry.core.baseline import (
+    DEFAULT_BASELINE_FILENAME,
+    filter_against_baseline,
+    load_baseline,
+)
 from driftsentry.core.config import DriftSentryConfig, load_config
 from driftsentry.core.models import DriftResult, IaCTool, StateBackendType
 from driftsentry.core.scanner import DriftScanner
@@ -284,6 +289,16 @@ def scan(
         "--save",
         help="Save scan result to JSON file",
     ),
+    baseline: bool | None = typer.Option(
+        None,
+        "--baseline/--no-baseline",
+        help="Filter detected drift against baseline ledger (default: true if baseline exists)",
+    ),
+    baseline_file: str | None = typer.Option(
+        None,
+        "--baseline-file",
+        help="Path to baseline file (default: .driftsentry-baseline.json)",
+    ),
 ) -> None:
     """Scan infrastructure for drift between IaC state and live cloud resources.
 
@@ -354,24 +369,59 @@ def scan(
     _last_scan_result = result
     _save_last_scan_result(result)
 
+    # Baseline filtering
+    baseline_path_to_check = (
+        Path(baseline_file)
+        if baseline_file
+        else (
+            Path(config.baseline.path)
+            if config.baseline.path
+            else (Path.cwd() / DEFAULT_BASELINE_FILENAME)
+        )
+    )
+    should_use_baseline = (
+        baseline
+        if baseline is not None
+        else (config.baseline.enabled and baseline_path_to_check.exists())
+    )
+
+    display_result = result
+    if should_use_baseline:
+        loaded_baseline = load_baseline(baseline_path_to_check)
+        if loaded_baseline is not None and loaded_baseline.entries:
+            display_result, breakdown = filter_against_baseline(result, loaded_baseline)
+            if output_format == "table":
+                console.print(
+                    f"\n  [cyan]🛡️ Baseline active:[/] {breakdown.total_acknowledged} acknowledged drift items suppressed "
+                    f"({len(breakdown.regression_items)} regressions)"
+                )
+                if breakdown.regression_items:
+                    console.print(
+                        f"  [bold red]⚠️ Regressions detected:[/] {len(breakdown.regression_items)} items re-drifted since acknowledgment!"
+                    )
+
     # Output
     if output_format == "json":
         formatter = JSONFormatter()
-        formatter.render(result)
+        formatter.render(display_result)
     else:
         formatter_table = TableFormatter(console=console, verbose=verbose)
-        formatter_table.render(result)
+        formatter_table.render(display_result)
 
     # Save result
     if save_result:
         save_path = Path(save_result)
         save_path.parent.mkdir(parents=True, exist_ok=True)
         save_path.write_text(
-            json.dumps(result.model_dump(mode="json"), indent=2, default=str),
+            json.dumps(display_result.model_dump(mode="json"), indent=2, default=str),
             encoding="utf-8",
         )
         console.print(f"\n[dim]Result saved to {save_result}[/]")
 
     # Exit code based on drift
-    if result.has_drift and config.policy.fail_on_critical and result.critical_count > 0:
+    if (
+        display_result.has_drift
+        and config.policy.fail_on_critical
+        and display_result.critical_count > 0
+    ):
         raise typer.Exit(code=2)

@@ -23,6 +23,12 @@ from driftsentry.cli.scan import (
     apply_cli_overrides,
     run_scan_pipeline,
 )
+from driftsentry.core.baseline import (
+    DEFAULT_BASELINE_FILENAME,
+    BaselineFilterResult,
+    filter_against_baseline,
+    load_baseline,
+)
 from driftsentry.core.config import load_config
 from driftsentry.core.models import (
     DriftResult,
@@ -235,6 +241,16 @@ def check(
         "--save",
         help="Save scan result to JSON file",
     ),
+    baseline: bool | None = typer.Option(
+        None,
+        "--baseline/--no-baseline",
+        help="Filter detected drift against baseline ledger (default: true if baseline exists)",
+    ),
+    baseline_file: str | None = typer.Option(
+        None,
+        "--baseline-file",
+        help="Path to baseline file (default: .driftsentry-baseline.json)",
+    ),
 ) -> None:
     """CI/CD drift check command with deterministic exit codes and step summaries.
 
@@ -337,15 +353,48 @@ def check(
         if output_format != "none":
             console.print(f"[dim]Scan result saved to {save_result}[/]")
 
-    # Evaluate failure policy
-    failed = evaluate_drift_failure(result, threshold)
+    # Baseline filtering
+    baseline_path_to_check = (
+        Path(baseline_file)
+        if baseline_file
+        else (
+            Path(config.baseline.path)
+            if config.baseline.path
+            else (Path.cwd() / DEFAULT_BASELINE_FILENAME)
+        )
+    )
+    should_use_baseline = (
+        baseline
+        if baseline is not None
+        else (config.baseline.enabled and baseline_path_to_check.exists())
+    )
+
+    evaluated_result = result
+    baseline_breakdown: BaselineFilterResult | None = None
+    if should_use_baseline:
+        loaded_baseline = load_baseline(baseline_path_to_check)
+        if loaded_baseline is not None and loaded_baseline.entries:
+            evaluated_result, baseline_breakdown = filter_against_baseline(result, loaded_baseline)
+            if output_format == "table":
+                console.print(
+                    f"\n[cyan]🛡️ Baseline active:[/] {baseline_breakdown.total_acknowledged} acknowledged drift items suppressed "
+                    f"({len(baseline_breakdown.regression_items)} regressions)"
+                )
+                if baseline_breakdown.regression_items:
+                    console.print(
+                        f"[bold red]⚠️ Regressions detected:[/] {len(baseline_breakdown.regression_items)} items re-drifted since acknowledgment!"
+                    )
+
+    # Evaluate failure policy on unacknowledged + regressed drift
+    failed = evaluate_drift_failure(evaluated_result, threshold)
 
     # Render CI Markdown
     ci_formatter = CISummaryFormatter()
     markdown_content = ci_formatter.render(
-        result=result,
+        result=evaluated_result,
         fail_on=threshold,
         failed=failed,
+        baseline_breakdown=baseline_breakdown,
     )
 
     # Write GitHub Step Summary ($GITHUB_STEP_SUMMARY or --github-step-summary)
@@ -364,10 +413,10 @@ def check(
     # Console output
     if output_format == "json":
         formatter_json = JSONFormatter()
-        formatter_json.render(result)
+        formatter_json.render(evaluated_result)
     elif output_format == "table":
         formatter_table = TableFormatter(console=console, verbose=verbose)
-        formatter_table.render(result)
+        formatter_table.render(evaluated_result)
 
     # Final summary status and deterministic exit
     if failed:
@@ -377,10 +426,17 @@ def check(
         )
         raise typer.Exit(code=2)
 
-    if result.has_drift:
+    if evaluated_result.has_drift:
         console.print(
             f"\n[bold yellow]⚠️ CI Check Passed with Warnings:[/] Drift detected, but below failure "
             f"threshold (`--fail-on {threshold}`). Exiting with code 0."
+        )
+        raise typer.Exit(code=0)
+
+    if result.has_drift and baseline_breakdown and baseline_breakdown.total_acknowledged > 0:
+        console.print(
+            f"\n[bold green]✅ CI Check Passed:[/] All detected drift ({baseline_breakdown.total_acknowledged} items) "
+            "is acknowledged in baseline ledger."
         )
         raise typer.Exit(code=0)
 

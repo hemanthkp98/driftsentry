@@ -12,6 +12,7 @@ import typer
 from rich.console import Console
 
 from driftsentry import __version__
+from driftsentry.cli.baseline import baseline_app
 from driftsentry.cli.check import check
 from driftsentry.cli.discover import discover
 from driftsentry.cli.remediate import remediate
@@ -47,6 +48,7 @@ app.command(name="report", help="Generate a drift report from the last scan")(re
 app.command(name="remediate", help="Generate remediation artifacts and optionally create a PR")(
     remediate
 )
+app.add_typer(baseline_app, name="baseline")
 
 
 @app.command()

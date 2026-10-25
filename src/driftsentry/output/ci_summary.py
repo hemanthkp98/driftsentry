@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from driftsentry.core.baseline import BaselineFilterResult
 from driftsentry.core.models import DriftItem, DriftResult, DriftSeverity, DriftType
 
 SEVERITY_EMOJI: dict[DriftSeverity, str] = {
@@ -38,6 +39,7 @@ class CISummaryFormatter:
         fail_on: str = "any",
         failed: bool = False,
         output_path: str | Path | None = None,
+        baseline_breakdown: BaselineFilterResult | None = None,
     ) -> str:
         """Generate GitHub Actions Step Summary and PR comment Markdown."""
         lines: list[str] = []
@@ -48,6 +50,16 @@ class CISummaryFormatter:
             lines.append("")
             lines.append(
                 f"> **Status:** 🚨 Drift detected matching failure policy (`--fail-on {fail_on}`)."
+            )
+        elif (
+            not result.has_drift
+            and baseline_breakdown
+            and baseline_breakdown.total_acknowledged > 0
+        ):
+            lines.append("# 🛡️ DriftSentry CI Check: Clean (Baseline Active) ✅")
+            lines.append("")
+            lines.append(
+                f"> **Status:** 🛡️ All detected drift ({baseline_breakdown.total_acknowledged} items) is acknowledged in baseline ledger."
             )
         elif result.has_drift:
             lines.append("# 🛡️ DriftSentry CI Check: Drift Detected (Non-Blocking) ⚠️")
@@ -108,12 +120,29 @@ class CISummaryFormatter:
         lines.append(f"| 🗑️ Deleted Resources | {result.deleted_count} | {deleted_status} |")
         lines.append(f"| 👻 Unmanaged Resources | {result.unmanaged_count} | {unmanaged_status} |")
         lines.append(f"| 🔴 Critical Severity | {result.critical_count} | {critical_status} |")
+        if baseline_breakdown is not None:
+            lines.append(
+                f"| 🛡️ Acknowledged in Baseline | {baseline_breakdown.total_acknowledged} | Suppressed |"
+            )
+            reg_status = (
+                "✅ None"
+                if len(baseline_breakdown.regression_items) == 0
+                else f"🚨 {len(baseline_breakdown.regression_items)} regressed"
+            )
+            lines.append(
+                f"| 🔄 Re-drifted Regressions | {len(baseline_breakdown.regression_items)} | {reg_status} |"
+            )
         lines.append("")
 
         if not result.has_drift:
-            lines.append(
-                "🎉 **No infrastructure drift detected.** Cloud resources are in full sync with IaC."
-            )
+            if baseline_breakdown and baseline_breakdown.total_acknowledged > 0:
+                lines.append(
+                    f"🎉 **No unacknowledged drift detected.** All {baseline_breakdown.total_acknowledged} drifted items are tracked in baseline ledger."
+                )
+            else:
+                lines.append(
+                    "🎉 **No infrastructure drift detected.** Cloud resources are in full sync with IaC."
+                )
             lines.append("")
             lines.append("---")
             lines.append(

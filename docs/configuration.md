@@ -83,6 +83,11 @@ notifications:
     - "critical"
     - "high"
 
+# Drift Baseline & Acknowledged-Drift Ledger
+baseline:
+  enabled: true
+  path: ".driftsentry-baseline.json"
+
 # Filter noise and exclude baseline resources
 filters:
   # exclude_tags:
@@ -134,6 +139,8 @@ filters:
 | `llm.provider` | `string` | `claude` | LLM backend: `claude` or `gemini`. |
 | `llm.model` | `string` | Provider default | Custom model identifier override. |
 | `llm.max_items` | `integer` | `20` | Maximum number of drifted resources to send to LLM. |
+| `baseline.enabled` | `boolean` | `true` | Suppress acknowledged drift matching baseline ledger entries. |
+| `baseline.path` | `string` | `.driftsentry-baseline.json` | Path to acknowledged drift baseline ledger file. |
 | `notifications.slack_webhook_url` | `string` | — | Slack Incoming Webhook URL (supports `${ENV_VAR}` expansion). |
 | `notifications.notify_on` | `list` | `["critical", "high"]` | Drift severity levels that trigger Slack notifications. |
 | `filters.include_types` | `list[string]` | `[]` | Only scan these specific resource types (empty = all). |

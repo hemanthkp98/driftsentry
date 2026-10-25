@@ -22,6 +22,14 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from driftsentry.cli.scan import get_last_scan_result, run_scan_pipeline
+from driftsentry.core.baseline import (
+    DEFAULT_BASELINE_FILENAME,
+    BaselineEntry,
+    DriftBaseline,
+    compute_drift_fingerprint,
+    load_baseline,
+    save_baseline,
+)
 from driftsentry.core.config import load_config
 from driftsentry.core.models import (
     DriftItem,
@@ -50,9 +58,11 @@ class TriageSummary:
     adopted: int = 0
     reverted: int = 0
     ignored: int = 0
+    acknowledged: int = 0
     skipped: int = 0
     files_created: set[str] = field(default_factory=set)
     config_file_updated: str | None = None
+    baseline_file_updated: str | None = None
 
 
 def add_exclusion_to_config(
@@ -166,6 +176,8 @@ def triage_item(
     config_file: str | Path | None,
     summary: TriageSummary,
     base_result: DriftResult | None = None,
+    baseline_file: str | Path | None = None,
+    auto_acknowledge: bool = False,
 ) -> None:
     """Execute the chosen triage action on a single drift item."""
     action = action.lower().strip()
@@ -208,6 +220,72 @@ def triage_item(
         summary.ignored += 1
         summary.config_file_updated = str(cfg_path)
         console.print(f"  [blue]✔ Ignored '{pattern}' — added to {cfg_path}[/]")
+
+    elif action == "k":  # Acknowledge into baseline
+        reason: str | None = None
+        if auto_acknowledge:
+            reason = "Auto-acknowledged via triage"
+        else:
+            try:
+                reason_input = Prompt.ask(
+                    "  Enter reason or ticket reference (optional)", default=""
+                ).strip()
+                reason = reason_input if reason_input else None
+            except Exception:
+                reason = None
+        target_baseline_path = (
+            Path(baseline_file) if baseline_file else (Path.cwd() / DEFAULT_BASELINE_FILENAME)
+        )
+        baseline = load_baseline(target_baseline_path) or DriftBaseline()
+
+        if item.drift_type == DriftType.CHANGED and item.attribute_diffs:
+            for diff in item.attribute_diffs:
+                fp = compute_drift_fingerprint(
+                    resource_address=item.resource_address,
+                    drift_type=item.drift_type,
+                    attribute_path=diff.path,
+                    actual_value=diff.actual_value,
+                )
+                entry = BaselineEntry(
+                    resource_address=item.resource_address,
+                    resource_type=item.resource_type,
+                    resource_id=item.resource_id,
+                    drift_type=item.drift_type,
+                    attribute_path=diff.path,
+                    fingerprint=fp,
+                    reason=reason,
+                    last_known_value=diff.actual_value,
+                )
+                baseline.add_or_update_entry(entry)
+        else:
+            actual_val: Any = None
+            if item.drift_type == DriftType.UNMANAGED and item.cloud_resource:
+                actual_val = item.cloud_resource.attributes
+
+            fp = compute_drift_fingerprint(
+                resource_address=item.resource_address,
+                drift_type=item.drift_type,
+                attribute_path=None,
+                actual_value=actual_val,
+            )
+            entry = BaselineEntry(
+                resource_address=item.resource_address,
+                resource_type=item.resource_type,
+                resource_id=item.resource_id,
+                drift_type=item.drift_type,
+                attribute_path=None,
+                fingerprint=fp,
+                reason=reason,
+                last_known_value=actual_val,
+            )
+            baseline.add_or_update_entry(entry)
+
+        saved_path = save_baseline(baseline, target_baseline_path)
+        summary.acknowledged += 1
+        summary.baseline_file_updated = str(saved_path)
+        console.print(
+            f"  [magenta]✔ Acknowledged {item.resource_address} into baseline ledger ({saved_path})[/]"
+        )
 
     elif action == "s":  # Skip
         summary.skipped += 1
@@ -264,6 +342,16 @@ def triage(
         "--auto-ignore",
         help="Automatically ignore all drift items (non-interactive mode)",
     ),
+    auto_acknowledge: bool = typer.Option(
+        False,
+        "--auto-acknowledge",
+        help="Automatically acknowledge all drift items into baseline (non-interactive mode)",
+    ),
+    baseline_file: str | None = typer.Option(
+        None,
+        "--baseline-file",
+        help="Path to baseline file (default: .driftsentry-baseline.json)",
+    ),
 ) -> None:
     """Interactively triage detected drift items and reconcile infrastructure.
 
@@ -271,6 +359,7 @@ def triage(
       - [a] Adopt: generate Terraform import or HCL update code
       - [r] Revert: generate live cloud undo plan and command
       - [i] Ignore: add pattern to .driftsentry.yaml exclusion list
+      - [k] Acknowledge: snapshot into .driftsentry-baseline.json ledger
       - [s] Skip: do nothing for this resource
       - [q] Quit: exit the triage session
 
@@ -360,6 +449,8 @@ def triage(
         default_non_interactive_action = "r"
     elif auto_ignore:
         default_non_interactive_action = "i"
+    elif auto_acknowledge:
+        default_non_interactive_action = "k"
 
     for idx, item in enumerate(items, 1):
         _display_drift_item(idx, total, item)
@@ -373,12 +464,13 @@ def triage(
                 "[bold green][A][/]dopt into TF  "
                 "[bold yellow][R][/]evert in AWS  "
                 "[bold blue][I][/]gnore in config  "
+                "[bold magenta][K][/] Acknowledge into baseline  "
                 "[dim][S]kip[/]  "
                 "[bold red][Q][/]uit"
             )
             action = Prompt.ask(
                 prompt_text,
-                choices=["a", "r", "i", "s", "q", "A", "R", "I", "S", "Q"],
+                choices=["a", "r", "i", "k", "s", "q", "A", "R", "I", "K", "S", "Q"],
                 default="s",
             ).lower()
 
@@ -394,6 +486,8 @@ def triage(
             config_file=config_file,
             summary=summary,
             base_result=result,
+            baseline_file=baseline_file,
+            auto_acknowledge=auto_acknowledge,
         )
         console.print()
 
@@ -407,6 +501,7 @@ def triage(
     summary_table.add_row("[green]Adopted (IaC)[/]", str(summary.adopted))
     summary_table.add_row("[yellow]Reverted (Cloud)[/]", str(summary.reverted))
     summary_table.add_row("[blue]Ignored (Config)[/]", str(summary.ignored))
+    summary_table.add_row("[magenta]Acknowledged (Baseline)[/]", str(summary.acknowledged))
     summary_table.add_row("[dim]Skipped[/]", str(summary.skipped))
 
     console.print(summary_table)
@@ -418,3 +513,6 @@ def triage(
 
     if summary.config_file_updated:
         console.print(f"[blue]Exclusion rules saved to:[/] {summary.config_file_updated}")
+
+    if summary.baseline_file_updated:
+        console.print(f"[magenta]Baseline entries saved to:[/] {summary.baseline_file_updated}")
