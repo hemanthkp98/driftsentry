@@ -63,3 +63,38 @@ This document details the architectural design and execution flow of DriftSentry
 ### Stage 5: Policy Evaluation & Remediation
 - `PolicyEngine` evaluates rule triggers, suppresses ignored noise attributes, and sets severity (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`).
 - `RemediationGenerator` (with optional `LLMAnalyzer`) produces executable import scripts, idiomatic HCL code, revert plans, and opens GitHub Pull Requests.
+
+---
+
+## 🛡️ Drift Baseline Ledger & Fingerprinting
+
+DriftSentry includes an acknowledged-drift ledger system designed to prevent alert fatigue from known, intentional drift (such as approved emergency hotfixes or manual out-of-band updates) without permanently ignoring entire resources:
+
+```
+┌─────────────────┐       ┌────────────────────────┐       ┌─────────────────────────┐
+│   DriftDiffer   │──────▶│     DriftResult        │──────▶│     BaselineFilter      │
+└─────────────────┘       │ (Raw Detected Drift)   │       └────────────┬────────────┘
+                                                                        │
+                                                          .driftsentry-baseline.json
+                                                                        │
+                                  ┌─────────────────────────────────────┴─────────────────────────────────────┐
+                                  ▼                                     ▼                                     ▼
+                      ┌──────────────────────┐              ┌──────────────────────┐              ┌──────────────────────┐
+                      │    Active Items      │              │  Acknowledged Items  │              │   Regression Items   │
+                      │ (Net-new Drift Items)│              │(Exact Fingerprint)   │              │(Re-drifted in Cloud) │
+                      └──────────┬───────────┘              └──────────┬───────────┘              └──────────┬───────────┘
+                                 │                                     │                                     │
+                                 ▼                                     ▼                                     ▼
+                      Unfiltered in Reports/CI               Suppressed from Noise                Flagged in Reports/CI
+```
+
+### Deterministic SHA-256 Fingerprinting
+
+Every detected drift item is hashed into a platform-agnostic, canonical fingerprint:
+
+$$\text{Fingerprint} = \text{SHA256}(\text{normalized\_address} \mid \text{drift\_type} \mid \text{attribute\_path} \mid \text{canonical\_json\_actual\_value})$$
+
+- **Dictionary Normalization**: JSON serialization recursively sorts all dictionary keys and applies stable separators (`","`, `":"`).
+- **Granular Attribute Attribution**: For `CHANGED` resources, each modified attribute receives its own fingerprint. A resource can have one attribute acknowledged while newly modified attributes remain active.
+- **Regression Detection**: If an acknowledged resource attribute is modified again in the cloud to a different value, the new fingerprint does not match the baseline entry and the item is classified as a `REGRESSION` rather than being silently suppressed.
+
