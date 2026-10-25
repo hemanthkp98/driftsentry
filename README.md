@@ -23,13 +23,19 @@ pip install "driftsentry[ai]"
 # 2. Scan live AWS infrastructure against your state file
 driftsentry scan --state-file ./terraform.tfstate
 
-# 3. Interactively triage and reconcile drift item-by-item
+# 3. Interactively triage or acknowledge intentional drift into baseline
 driftsentry triage
 
-# 4. Generate an interactive HTML drift report
+# 4. Acknowledge known drift into fingerprint baseline ledger
+driftsentry baseline save -m "Hotfix INC-101"
+
+# 5. Run deterministic CI/CD drift check with step summaries
+driftsentry check --state-file ./terraform.tfstate --fail-on critical
+
+# 6. Generate an interactive HTML drift report
 driftsentry report --format html --output drift-report.html
 
-# 5. Auto-remediate and open a Pull Request with AI root-cause analysis
+# 7. Auto-remediate and open a Pull Request with AI root-cause analysis
 driftsentry remediate --ai --create-pr --repo "myorg/infra-repo"
 ```
 
@@ -39,8 +45,8 @@ driftsentry remediate --ai --create-pr --repo "myorg/infra-repo"
 
 - [Getting Started](docs/getting-started.md) — Installation options, AWS credentials setup, running first scans, and Docker usage.
 - [Multi-Account & Multi-Region](docs/multi-account-multi-region.md) — Enterprise AWS Organizations setup, role templates, dynamic region discovery, and parallel execution.
-- [Configuration](docs/configuration.md) — `.driftsentry.yaml` schema, environment variables, and recommended read-only IAM policy.
-- [CLI Reference](docs/api.md) — Complete command options, flags, and exit codes for `scan`, `triage`, `report`, and `remediate`.
+- [Configuration](docs/configuration.md) — `.driftsentry.yaml` schema, environment variables, baseline ledger, and recommended read-only IAM policy.
+- [CLI Reference](docs/api.md) — Complete command options, flags, and exit codes for `scan`, `check`, `baseline`, `triage`, `report`, and `remediate`.
 - [Architecture & Internals](docs/architecture.md) — Pipeline design, diff engine algorithms, and CloudTrail correlation.
 - [AI Smart Remediation](docs/ai-remediation.md) — Claude and Gemini LLM setup, prompt guardrails, and auto-generated HCL blocks.
 - [Policy as Code](docs/policy-as-code.md) — Severity classification rules, noise suppression, and CI/CD threshold controls.

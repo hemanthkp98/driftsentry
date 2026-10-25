@@ -199,6 +199,16 @@ class LLMConfig(BaseModel):
     thinking_budget: int = Field(default=5000, description="Token budget for LLM extended thinking")
 
 
+class BaselineConfig(BaseModel):
+    """Configuration for drift baseline ledger."""
+
+    enabled: bool = Field(default=True, description="Enable baseline drift suppression")
+    path: str | None = Field(
+        default=None,
+        description="Path to baseline file (default: .driftsentry-baseline.json)",
+    )
+
+
 class DriftSentryConfig(BaseModel):
     """Root configuration for DriftSentry."""
 
@@ -225,6 +235,7 @@ class DriftSentryConfig(BaseModel):
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
     filters: ScanFilters = Field(default_factory=ScanFilters)
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    baseline: BaselineConfig = Field(default_factory=BaselineConfig)
     verbose: bool = Field(default=False, description="Enable verbose output")
 
 
