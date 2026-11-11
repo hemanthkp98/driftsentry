@@ -65,12 +65,23 @@ class PRCreator:
         # Build the tree with remediation files
         tree_elements: list[InputGitTreeElement] = []
 
+        out_dir = remediation.output_dir.resolve()
         for file_path in remediation.files_created:
-            rel_path = Path(file_path).name
-            content = Path(file_path).read_text()
+            p = Path(file_path).resolve()
+            if not p.exists() or p.is_dir():
+                continue
+            content = p.read_text(encoding="utf-8")
+            if out_dir in p.parents or p.parent == out_dir:
+                tree_path = f"driftsentry-remediation/{p.name}"
+            else:
+                try:
+                    tree_path = str(p.relative_to(Path.cwd()))
+                except ValueError:
+                    tree_path = p.name
+
             tree_elements.append(
                 InputGitTreeElement(
-                    path=f"driftsentry-remediation/{rel_path}",
+                    path=tree_path,
                     mode="100644",
                     type="blob",
                     content=content,

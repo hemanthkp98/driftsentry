@@ -228,3 +228,77 @@ def test_remediation_with_ai(tmp_path: Path) -> None:
     assert revert_file.exists()
     revert_content = revert_file.read_text(encoding="utf-8")
     assert "AI Root Cause:" in revert_content
+
+
+def test_remediation_adopt_mode(tmp_path: Path) -> None:
+    workspace_dir = tmp_path / "src_repo"
+    workspace_dir.mkdir()
+    tf_file = workspace_dir / "compute.tf"
+    tf_file.write_text(
+        """resource "aws_instance" "app" {
+  ami           = "ami-123456"
+  instance_type = "t3.micro"
+}
+""",
+        encoding="utf-8",
+    )
+
+    out_dir = tmp_path / "remediation_artifacts"
+
+    changed_item = DriftItem(
+        resource_address="aws_instance.app",
+        resource_type="aws_instance",
+        resource_id="i-app-123",
+        drift_type=DriftType.CHANGED,
+        attribute_diffs=[
+            AttributeDiff(
+                path="instance_type",
+                desired_value="t3.micro",
+                actual_value="t3.xlarge",
+            )
+        ],
+    )
+    unmanaged_item = DriftItem(
+        resource_address="[unmanaged] aws_s3_bucket.shadow",
+        resource_type="aws_s3_bucket",
+        resource_id="shadow-bucket-123",
+        drift_type=DriftType.UNMANAGED,
+        cloud_resource=CloudResource(
+            resource_id="shadow-bucket-123",
+            resource_type="aws_s3_bucket",
+            attributes={"bucket": "shadow-bucket-123"},
+        ),
+    )
+
+    result = DriftResult(
+        scan_id="adopt-scan",
+        provider="aws",
+        state_backend=StateBackendType.LOCAL,
+        state_source="test",
+        drift_items=[changed_item, unmanaged_item],
+    )
+
+    generator = RemediationGenerator(
+        mode=RemediationMode.ADOPT,
+        workspace_dir=workspace_dir,
+        output_dir=str(out_dir),
+        dry_run=False,
+    )
+    output = generator.generate(result)
+
+    assert len(output.patched_items) == 1
+    assert output.patched_items[0]["success"] is True
+    assert "instance_type" in output.patched_items[0]["attributes_patched"]
+
+    # In-place file update check
+    updated_tf = tf_file.read_text(encoding="utf-8")
+    assert 'instance_type = "t3.xlarge"' in updated_tf
+
+    # Unmanaged import check
+    assert len(output.import_commands) == 1
+    assert (out_dir / "import.sh").exists()
+    assert (out_dir / "adopt_aws_instance_app.diff").exists()
+
+    summary_content = (out_dir / "REMEDIATION_SUMMARY.md").read_text(encoding="utf-8")
+    assert "## Reconciled Resources — Adopt" in summary_content
+    assert "`aws_instance.app`" in summary_content

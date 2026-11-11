@@ -192,14 +192,28 @@ def triage_item(
 
     if action == "a":  # Adopt
         generator = RemediationGenerator(
-            mode=RemediationMode.IMPORT,
+            mode=RemediationMode.ADOPT,
             iac_tool=iac_tool,
             output_dir=str(output_dir),
+            workspace_dir=Path.cwd(),
         )
         out = generator.generate(single_item_result)
         summary.adopted += 1
         summary.files_created.update(out.files_created)
-        console.print(f"  [green]✔ Adopted {item.resource_address} into {output_dir}/[/]")
+        if item.drift_type == DriftType.CHANGED:
+            patched = out.patched_items[0] if out.patched_items else None
+            if patched and patched.get("success"):
+                file_rel = Path(patched["file_path"]).name if patched.get("file_path") else "code"
+                attrs = ", ".join(patched.get("attributes_patched", []))
+                console.print(
+                    f"  [green]✔ Reconciled {item.resource_address} in {file_rel} ({attrs})[/]"
+                )
+            elif patched and not patched.get("success"):
+                console.print(f"  [yellow]⚠ {patched.get('message', 'Could not patch file')}[/]")
+            else:
+                console.print(f"  [green]✔ Adopted {item.resource_address} into code[/]")
+        else:
+            console.print(f"  [green]✔ Adopted {item.resource_address} into {output_dir}/[/]")
 
     elif action == "r":  # Revert
         generator = RemediationGenerator(

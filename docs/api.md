@@ -186,7 +186,8 @@ driftsentry remediate [OPTIONS]
 | Option | Flag | Description | Default |
 |---|---|---|---|
 | `--input` | `-i` | Path to saved scan JSON file | Last scan |
-| `--mode` | `-m` | Remediation mode: `both`, `import`, `revert` | `both` |
+| `--mode` | `-m` | Remediation mode: `both`, `import`, `revert`, `adopt` | `both` |
+| `--workspace-dir` | `-w` | Directory containing Terraform source code (`.tf` files) | Current working directory |
 | `--output-dir`| `-o` | Directory to write remediation artifacts | `./driftsentry-remediation` |
 | `--iac-tool` | | Target IaC tool: `terraform` or `opentofu` | `terraform` |
 | `--dry-run` | | Preview remediation summary without writing files | `false` |
@@ -205,6 +206,9 @@ driftsentry remediate [OPTIONS]
 ```bash
 # Standard dual-mode remediation
 driftsentry remediate --mode both --output-dir ./remediation
+
+# In-place HCL reconciliation (adopts changed attributes directly into .tf source files)
+driftsentry remediate --mode adopt --workspace-dir ./terraform
 
 # AI-powered smart remediation with Claude
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -248,7 +252,7 @@ driftsentry triage [OPTIONS]
 ### Interactive Actions
 
 For each drifted resource, you can select:
-- **`[A]dopt`**: Generate Terraform import blocks (for unmanaged resources) or updated HCL snippets.
+- **`[A]dopt`**: Reconcile live attributes in-place into existing `.tf` source files (for changed resources), or generate import scripts and HCL blocks (for unmanaged resources).
 - **`[R]evert`**: Generate AWS CLI revert commands or plan to undo the live change.
 - **`[I]gnore`**: Automatically append the resource ID/pattern to `.driftsentry.yaml` exclusion rules.
 - **`[K] Acknowledge`**: Record drift item fingerprint into `.driftsentry-baseline.json` ledger so it is suppressed in future scans.

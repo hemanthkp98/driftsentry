@@ -261,3 +261,59 @@ def test_triage_zero_config_failure_shows_checked_paths(
     assert result.exit_code == 1
     assert "No scan result found and state auto-discovery failed" in result.stdout
     assert "Checked paths" in result.stdout
+
+
+def test_triage_adopt_changed_resource_patches_tf_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    tf_file = tmp_path / "main.tf"
+    tf_file.write_text(
+        """resource "aws_instance" "web" {
+  instance_type = "t3.micro"
+}
+""",
+        encoding="utf-8",
+    )
+
+    item = DriftItem(
+        resource_address="aws_instance.web",
+        resource_type="aws_instance",
+        resource_id="i-12345",
+        drift_type=DriftType.CHANGED,
+        severity=DriftSeverity.MEDIUM,
+        attribute_diffs=[
+            AttributeDiff(
+                path="instance_type",
+                desired_value="t3.micro",
+                actual_value="t3.2xlarge",
+            )
+        ],
+    )
+    scan_res = DriftResult(
+        scan_id="triage-adopt",
+        iac_tool=IaCTool.TERRAFORM,
+        provider="aws",
+        state_backend=StateBackendType.LOCAL,
+        state_source="terraform.tfstate",
+        drift_items=[item],
+    )
+    scan_file = tmp_path / "scan.json"
+    scan_file.write_text(scan_res.model_dump_json())
+
+    result = runner.invoke(
+        app,
+        [
+            "triage",
+            "--input",
+            str(scan_file),
+            "--non-interactive",
+            "--auto-adopt",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Reconciled aws_instance.web in main.tf" in result.stdout
+    updated_hcl = tf_file.read_text(encoding="utf-8")
+    assert 'instance_type = "t3.2xlarge"' in updated_hcl

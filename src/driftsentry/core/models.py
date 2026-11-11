@@ -54,6 +54,9 @@ class RemediationMode(StrEnum):
     REVERT = "revert"
     """Generate a plan to revert the cloud resource back to the desired state in code."""
 
+    ADOPT = "adopt"
+    """Reconcile drift into Terraform source code (in-place HCL patch and unmanaged imports)."""
+
     BOTH = "both"
     """Generate both import and revert artifacts, letting the user choose."""
 
