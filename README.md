@@ -35,8 +35,8 @@ driftsentry check --state-file ./terraform.tfstate --fail-on critical
 # 6. Generate an interactive HTML drift report
 driftsentry report --format html --output drift-report.html
 
-# 7. Auto-remediate and open a Pull Request with AI root-cause analysis
-driftsentry remediate --ai --create-pr --repo "myorg/infra-repo"
+# 7. Auto-reconcile intentional drift into .tf code and open a Pull Request
+driftsentry remediate --mode adopt --create-pr --repo "myorg/infra-repo"
 ```
 
 ---

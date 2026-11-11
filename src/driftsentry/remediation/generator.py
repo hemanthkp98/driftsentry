@@ -1,9 +1,10 @@
 """Remediation generator — produces import commands and HCL code.
 
-Supports three modes:
+Supports modes:
 - IMPORT: Generate `terraform import` / `tofu import` commands + HCL resource blocks
   for unmanaged resources.
 - REVERT: Generate instructions to revert drifted resources to their desired state.
+- ADOPT: Reconcile drift directly into existing Terraform source code and import unmanaged.
 - BOTH: Generate both artifacts, letting the user choose per-resource.
 """
 
@@ -26,6 +27,7 @@ from driftsentry.core.models import (
     IaCTool,
     RemediationMode,
 )
+from driftsentry.remediation.hcl_patcher import HCLPatcher
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +52,13 @@ class RemediationGenerator:
         iac_tool: IaCTool = IaCTool.TERRAFORM,
         output_dir: str = "./driftsentry-remediation",
         dry_run: bool = False,
+        workspace_dir: str | Path | None = None,
     ) -> None:
         self._mode = mode
         self._iac_tool = iac_tool
         self._output_dir = Path(output_dir)
         self._dry_run = dry_run
+        self._workspace_dir = Path(workspace_dir).resolve() if workspace_dir else Path.cwd()
 
         # Initialize Jinja2 template environment
         self._env = Environment(
@@ -103,12 +107,19 @@ class RemediationGenerator:
         for item in result.drift_items:
             if item.drift_type == DriftType.UNMANAGED and self._mode in (
                 RemediationMode.IMPORT,
+                RemediationMode.ADOPT,
                 RemediationMode.BOTH,
             ):
                 ai_hcl = ai_hcl_map.get(item.resource_address) or (
                     ai_hcl_map.get(item.resource_id) if item.resource_id else None
                 )
                 self._generate_import(item, tool_cmd, output, ai_hcl=ai_hcl)
+
+            if item.drift_type == DriftType.CHANGED and self._mode in (
+                RemediationMode.ADOPT,
+                RemediationMode.BOTH,
+            ):
+                self._generate_adopt(item, output)
 
             if item.drift_type == DriftType.CHANGED and self._mode in (
                 RemediationMode.REVERT,
@@ -236,6 +247,41 @@ class RemediationGenerator:
                 f.write("\n---\n\n")
             output.files_created.add(str(revert_md))
 
+    def _generate_adopt(
+        self,
+        item: DriftItem,
+        output: RemediationOutput,
+    ) -> None:
+        """Reconcile an in-place changed resource into Terraform source code."""
+        patcher = HCLPatcher(
+            workspace_dir=self._workspace_dir,
+            dry_run=self._dry_run,
+        )
+        patch_res = patcher.patch_resource(item)
+        patch_info: dict[str, Any] = {
+            "resource": item.resource_address,
+            "resource_type": item.resource_type,
+            "resource_id": item.resource_id,
+            "file_path": str(patch_res.file_path) if patch_res.file_path else None,
+            "attributes_patched": patch_res.attributes_patched,
+            "success": patch_res.success,
+            "diff": patch_res.diff,
+            "message": patch_res.message,
+        }
+        output.patched_items.append(patch_info)
+
+        if patch_res.success and patch_res.file_path:
+            output.files_created.add(str(patch_res.file_path))
+
+        if not self._dry_run and patch_res.diff:
+            safe_addr = item.resource_address.replace(".", "_").replace("[", "_").replace("]", "_")
+            diff_file = self._output_dir / f"adopt_{safe_addr}.diff"
+            try:
+                diff_file.write_text(patch_res.diff, encoding="utf-8")
+                output.files_created.add(str(diff_file))
+            except OSError as e:
+                logger.warning("Could not write diff file %s: %s", diff_file, e)
+
     def _generate_hcl_block(self, item: DriftItem, suggested_name: str) -> str:
         """Generate an HCL resource block from cloud resource attributes."""
         attrs = {}
@@ -306,6 +352,24 @@ class RemediationGenerator:
                 )
                 f.write("See `revert_instructions.md` for details.\n\n")
 
+            if output.patched_items:
+                f.write("## Reconciled Resources — Adopt\n\n")
+                f.write(
+                    f"Reconciled {len(output.patched_items)} drifted resource(s) into Terraform source code:\n\n"
+                )
+                for p in output.patched_items:
+                    status_icon = "✔" if p.get("success") else "✖"
+                    f.write(f"- {status_icon} `{p['resource']}`")
+                    if p.get("file_path"):
+                        f.write(f" in `{p['file_path']}`")
+                    attrs = ", ".join(p.get("attributes_patched", []))
+                    if attrs:
+                        f.write(f" ({attrs})")
+                    f.write("\n")
+                    if p.get("message") and not p.get("success"):
+                        f.write(f"  > ⚠️ {p['message']}\n")
+                f.write("\n")
+
             if output.deleted_resources:
                 f.write("## Deleted Resources\n\n")
                 f.write("These resources exist in state but have been deleted from the cloud:\n\n")
@@ -375,10 +439,16 @@ class RemediationOutput:
         self.import_commands: list[str] = []
         self.hcl_blocks: list[str] = []
         self.revert_items: list[dict[str, Any]] = []
+        self.patched_items: list[dict[str, Any]] = []
         self.deleted_resources: list[str] = []
         self.files_created: set[str] = set()
         self.ai_result: AIRemediationResult | None = None
 
     @property
     def total_items(self) -> int:
-        return len(self.import_commands) + len(self.revert_items) + len(self.deleted_resources)
+        return (
+            len(self.import_commands)
+            + len(self.revert_items)
+            + len(self.patched_items)
+            + len(self.deleted_resources)
+        )

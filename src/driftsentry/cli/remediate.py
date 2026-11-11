@@ -32,7 +32,13 @@ def remediate(
         "both",
         "--mode",
         "-m",
-        help="Remediation mode: import, revert, both",
+        help="Remediation mode: import, revert, adopt, both",
+    ),
+    workspace_dir: str | None = typer.Option(
+        None,
+        "--workspace-dir",
+        "-w",
+        help="Directory containing Terraform source code (.tf files)",
     ),
     output_dir: str = typer.Option(
         "./driftsentry-remediation",
@@ -175,6 +181,7 @@ def remediate(
         iac_tool=IaCTool(iac_tool),
         output_dir=output_dir,
         dry_run=dry_run,
+        workspace_dir=workspace_dir,
     )
 
     output = generator.generate(result, ai_result=ai_result)
@@ -205,6 +212,15 @@ def remediate(
         console.print(f"[bold]🔄 Revert items:[/] {len(output.revert_items)}")
         for item in output.revert_items[:5]:
             console.print(f"  [dim]{item['resource']} ({len(item['changes'])} changes)[/]")
+        console.print()
+
+    if output.patched_items:
+        console.print(f"[bold]📝 Reconciled into code:[/] {len(output.patched_items)}")
+        for item in output.patched_items[:5]:
+            status_str = "✔" if item.get("success") else "✖"
+            f_path = Path(item["file_path"]).name if item.get("file_path") else "not found"
+            attrs = ", ".join(item.get("attributes_patched", []))
+            console.print(f"  [dim]{status_str} {item['resource']} -> {f_path} ({attrs})[/]")
         console.print()
 
     if output.deleted_resources:
